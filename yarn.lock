@@ -8530,6 +8530,11 @@ relateurl@^0.2.7:
   resolved "https://registry.yarnpkg.com/relateurl/-/relateurl-0.2.7.tgz#54dbf377e51440aca90a4cd274600d3ff2d888a9"
   integrity sha1-VNvzd+UUQKypCkzSdGANP/LYiKk=
 
+remarkable-wikilink@^0.1.0:
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/remarkable-wikilink/-/remarkable-wikilink-0.1.1.tgz#0ecf2ecb6d227034c2f96edc74d47d4d396a103e"
+  integrity sha512-+yBSvBLkyxvzPNYCh3bXf3mZyIjE4qH8ZkqQR0vy/oWSZA9SaiLHEDtarzJ5YbO4HVtb5trw2QM9eJQusWBFmQ==
+
 remarkable@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/remarkable/-/remarkable-2.0.0.tgz#795f965bede8300362ce51a716edc322d9e7a4ca"

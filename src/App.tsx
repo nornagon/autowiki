@@ -24,51 +24,9 @@ function ExpandingTextArea(opts: React.TextareaHTMLAttributes<HTMLTextAreaElemen
   )
 }
 
-function wikilinkRule(state: Remarkable.StateInline, silent: boolean) {
-  const {pos: start, src, posMax} = state
-  const ch = src.charCodeAt(start)
-  if (ch !== 0x5b /* [ */) return false
-  if (start + 4 >= posMax) return false
-  if (src.charCodeAt(start + 1) !== 0x5b) return false
-
-  const labelStart = start + 2
-  let labelEnd = start + 2
-  state.pos = start + 2
-  let found = false
-  while (state.pos + 1 < posMax) {
-    if (src.charCodeAt(state.pos) === 0x5d /* ] */) {
-      if (src.charCodeAt(state.pos + 1) === 0x5d /* ] */) {
-        labelEnd = state.pos
-        found = true
-        break
-      }
-    }
-    state.parser.skipToken(state)
-  }
-
-  if (!found) {
-    state.pos = start
-    return false
-  }
-
-  state.posMax = state.pos
-  state.pos = start + 2
-  if (!silent) {
-    state.push({ type: 'link_open', href: src.substring(labelStart, labelEnd), level: state.level++ } as any)
-    state.linkLevel++
-    state.parser.tokenize(state)
-    state.linkLevel--
-    state.push({ type: 'link_close', level: --state.level })
-  }
-
-  state.pos = state.posMax + 2
-  state.posMax = posMax
-  return true
-}
-
 function PageText({text}: {text: string}) {
   const md = new ((Remarkable as any).Remarkable)()
-  md.inline.ruler.push("wiki-link", wikilinkRule)
+  md.use(require('remarkable-wikilink'))
   const html = md.render(text)
   return <div dangerouslySetInnerHTML={ { __html: html } } />
 }
