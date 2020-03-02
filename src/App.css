@@ -1,6 +1,7 @@
 .Page {
   max-width: 800px;
   margin: 0 auto;
+  line-height: 1.5em;
 }
 
 .expandingArea {
@@ -31,4 +32,17 @@
 }
 .expandingArea > pre {
   visibility: hidden;
+}
+
+a.wikilink {
+  text-decoration: none;
+  color: #106ba3;
+}
+a.wikilink:before {
+  content: '[[';
+  color: #a7b6c2;
+}
+a.wikilink:after {
+  content: ']]';
+  color: #a7b6c2;
 }
