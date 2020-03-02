@@ -49,16 +49,34 @@ function ExpandingTextArea(opts: React.TextareaHTMLAttributes<HTMLTextAreaElemen
   )
 }
 
+function makeRemarkable() {
+  const md = new ((Remarkable as any).Remarkable)()
+  md.use(require('remarkable-wikilink'))
+  return md
+}
+
+function extractLinks(text: string) {
+  function extract(ast: any[], context: any): any[] {
+    return ast.flatMap((node) => {
+      if (node.type === 'wikilink_open') {
+        return [{href: node.href, context: context.content}]
+      } else if (node.children) {
+        return extract(node.children, node)
+      } else return []
+    })
+  }
+  const ast = makeRemarkable().parse(text, {})
+  return extract(ast, {})
+}
+
 function PageText({text}: {text: string}) {
   const html = useMemo(() => {
-    const md = new ((Remarkable as any).Remarkable)()
-    md.use(require('remarkable-wikilink'))
-    return md.render(text)
+    return makeRemarkable().render(text)
   }, [text])
   return <div style={{minHeight: 100}} dangerouslySetInnerHTML={ { __html: html } } />
 }
 
-function Page({title, navigate}: {title: string, navigate: (s: string) => void}) {
+function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[], navigate: (s: string) => void}) {
   const [text, setText] = useStorage(title)
   const [editing, setEditing] = useState(false)
   function onClick(e: React.MouseEvent<HTMLElement, MouseEvent>) {
@@ -72,23 +90,55 @@ function Page({title, navigate}: {title: string, navigate: (s: string) => void})
         }
       }
     }
-    setEditing(true)
   }
+  const backlinksByPage = new Map<string, LinkInfo[]>()
+  for (const l of backlinks) {
+    if (!backlinksByPage.has(l.page)) {
+      backlinksByPage.set(l.page, [])
+    }
+    backlinksByPage.get(l.page)!.push(l)
+  }
+  const backlinkingPages = [...backlinksByPage.keys()].sort()
   return (
     <article className="Page">
-      <h1>{title}</h1>
+      <h1>{title} {editing ? <button key="done" onClick={() => setEditing(false)}>done</button> : <button onClick={() => setEditing(true)}>edit</button>}</h1>
       {editing
-        ? <ExpandingTextArea autoFocus value={text ?? ''} onChange={(e: any) => setText(e.target.value)} onBlur={() => setEditing(false)} />
+        ? <ExpandingTextArea autoFocus value={text ?? ''} onChange={(e: any) => setText(e.target.value)} />
         : <section className="text" onClick={onClick}><PageText text={text ?? ""} /></section>
       }
+      <h4>References</h4>
+      <ul>
+        {backlinkingPages.map(page => <li><a href={page} className="wikilink">{page}</a>:<ul>{backlinksByPage.get(page)!.map(l => <li><PageText text={l.context} /></li>)}</ul></li>)}
+      </ul>
     </article>
   )
 }
 
+type LinkInfo = {page: string, context: string}
+
+function getLinksTo(pageTitle: string): LinkInfo[] {
+  const links: LinkInfo[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i)!
+    if (k === pageTitle) continue
+    const v = localStorage.getItem(k)!
+    for (const link of extractLinks(v)) {
+      if (link.href === pageTitle) {
+        links.push({page: k, context: link.context})
+      }
+    }
+  }
+  return links
+}
+
 function App() {
   const [pathname, navigate] = useHistory()
+  const pageTitle = decodeURIComponent(pathname.substr(1))
+
+  const backlinks = useMemo(() => getLinksTo(pageTitle), [pageTitle])
+
   return (
-    <Page title={decodeURIComponent(pathname.substr(1))} navigate={navigate} />
+    <Page title={pageTitle} navigate={navigate} backlinks={backlinks} />
   );
 }
 
