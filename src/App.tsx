@@ -100,15 +100,15 @@ function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[
   }
   const backlinkingPages = [...backlinksByPage.keys()].sort()
   return (
-    <article className="Page">
+    <article className="Page" onClick={onClick}>
       <h1>{title} {editing ? <button key="done" onClick={() => setEditing(false)}>done</button> : <button onClick={() => setEditing(true)}>edit</button>}</h1>
       {editing
         ? <ExpandingTextArea autoFocus value={text ?? ''} onChange={(e: any) => setText(e.target.value)} />
-        : <section className="text" onClick={onClick}><PageText text={text ?? ""} /></section>
+        : <section className="text"><PageText text={text ?? ""} /></section>
       }
       <h4>References</h4>
       <ul>
-        {backlinkingPages.map(page => <li><a href={page} className="wikilink">{page}</a>:<ul>{backlinksByPage.get(page)!.map(l => <li><PageText text={l.context} /></li>)}</ul></li>)}
+        {backlinkingPages.map(page => <li><a href={encodeURIComponent(page)} className="wikilink">{page}</a>:<ul>{backlinksByPage.get(page)!.map(l => <li><PageText text={l.context} /></li>)}</ul></li>)}
       </ul>
     </article>
   )
