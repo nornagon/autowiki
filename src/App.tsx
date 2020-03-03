@@ -49,6 +49,9 @@ function makeRemarkable() {
   })
   md.use(require('remarkable-wikilink'))
   md.inline.ruler.enable(['mark'])
+  md.renderer.rules.table_open = () => {
+    return '<table class="table table-striped">\n'
+  }
   return md
 }
 
