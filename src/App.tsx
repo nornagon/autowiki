@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import * as Remarkable from 'remarkable';
 import './App.css';
 
@@ -22,13 +22,7 @@ const useHistory = (): [string, (s: string) => void] => {
 
 function useStorage(key: string, initialValue: string | null = null): [string | null, (s: string) => void] {
   const [value, setValue] = useState(localStorage.getItem(key) ?? initialValue)
-  const prev = useRef(key)
   useEffect(() => {
-    if (key !== prev.current) {
-      prev.current = key
-      setValue(localStorage.getItem(key))
-      return
-    }
     // TODO: IndexedDB
     // TODO: navigator.storage.persist()
     // TODO: remote backup
@@ -138,7 +132,7 @@ function App() {
   const backlinks = useMemo(() => getLinksTo(pageTitle), [pageTitle])
 
   return (
-    <Page title={pageTitle} navigate={navigate} backlinks={backlinks} />
+    <Page key={pageTitle} title={pageTitle} navigate={navigate} backlinks={backlinks} />
   );
 }
 
