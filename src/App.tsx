@@ -109,7 +109,10 @@ function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[
       }
       <h4>References</h4>
       <ul>
-        {backlinkingPages.map(page => <li><a href={encodeURIComponent(page)} className="wikilink">{page}</a>:<ul>{backlinksByPage.get(page)!.map(l => <li><PageText text={l.context} /></li>)}</ul></li>)}
+        {backlinkingPages.map(page => <li key={page}>
+          <a href={encodeURIComponent(page)} className="wikilink">{page}</a>:
+          <ul>{backlinksByPage.get(page)!.map((l, i) => <li key={i}><PageText text={l.context} /></li>)}</ul>
+        </li>)}
       </ul>
     </article>
   )
