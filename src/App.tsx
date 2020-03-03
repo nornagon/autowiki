@@ -76,6 +76,10 @@ function PageText({text}: {text: string}) {
 function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[], navigate: (s: string) => void}) {
   const [text, setText] = useStorage(title)
   const [editing, setEditing] = useState(false)
+  useEffect(() => {
+    // quit edit mode when navigating
+    setEditing(false)
+  }, [title])
   function onClick(e: React.MouseEvent<HTMLElement, MouseEvent>) {
     if (e.target instanceof HTMLElement) {
       if (e.target.tagName.toLowerCase() === 'a' && e.target.classList.contains('wikilink')) {
