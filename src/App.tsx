@@ -44,8 +44,11 @@ function ExpandingTextArea(opts: React.TextareaHTMLAttributes<HTMLTextAreaElemen
 }
 
 function makeRemarkable() {
-  const md = new ((Remarkable as any).Remarkable)()
+  const md = new ((Remarkable as any).Remarkable)({
+    typographer: true
+  })
   md.use(require('remarkable-wikilink'))
+  md.inline.ruler.enable(['mark'])
   return md
 }
 
@@ -67,7 +70,7 @@ function PageText({text}: {text: string}) {
   const html = useMemo(() => {
     return makeRemarkable().render(text)
   }, [text])
-  return <div style={{minHeight: 100}} dangerouslySetInnerHTML={ { __html: html } } />
+  return <div dangerouslySetInnerHTML={ { __html: html } } />
 }
 
 function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[], navigate: (s: string) => void}) {
@@ -125,9 +128,16 @@ function getLinksTo(pageTitle: string): LinkInfo[] {
   return links
 }
 
+function useDocumentTitle(title: string) {
+  useEffect(() => {
+    document.title = title;
+  }, [title])
+}
+
 function App() {
   const [pathname, navigate] = useHistory()
   const pageTitle = decodeURIComponent(pathname.substr(1))
+  useDocumentTitle(pageTitle)
 
   const backlinks = useMemo(() => getLinksTo(pageTitle), [pageTitle])
 

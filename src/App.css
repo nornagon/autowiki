@@ -4,6 +4,18 @@
   line-height: 1.5em;
 }
 
+.Page mark {
+  background: #fef09f;
+  margin: -3px -2px;
+  padding: 3px 2px;
+}
+
+.Page blockquote {
+  margin-inline-start: 0;
+  padding-inline-start: 1em;
+  border-left: 4px solid lightgray;
+}
+
 .expandingArea {
   position: relative;
   background: transparent;
