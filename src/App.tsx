@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import * as Remarkable from 'remarkable';
 import './App.css';
 import Automerge, { DocSetHandler } from 'automerge';
+import { opFromInput } from './textarea-op';
 
 function* allLocalStorageKeys() {
   for (let i = 0; i < localStorage.length; i++) {
@@ -71,18 +72,23 @@ const useHistory = (): [string, (s: string) => void] => {
   return [pathname, navigate]
 }
 
-function useStorage(key: string, initialValue: string | null = null): [string | null, (s: string) => void] {
+function useStorage(key: string, initialValue: string | null = null): [string | null, (f: (t: Automerge.Text) => void) => void] {
   const [wiki, changeWiki] = useDocument<any>("wiki", Automerge.from({}))
-  function setValue(s: string) {
+  function changeText(f: (t: Automerge.Text) => void) {
     changeWiki((doc) => {
-      doc[key] = s
+      if (!(key in doc))
+        doc[key] = new Automerge.Text()
+      f(doc[key])
     })
   }
-  return [wiki[key] ?? '', setValue]
+  return [wiki[key]?.toString() ?? '', changeText]
 }
 
-function allPages() {
-  return Object.entries(docSet.getDoc("wiki"))
+function* allPages() {
+  const doc = docSet.getDoc("wiki") ?? {}
+  for (const k of Object.keys(doc)) {
+    yield [k, doc[k].toString()]
+  }
 }
 
 function ExpandingTextArea(opts: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -128,7 +134,7 @@ function PageText({text}: {text: string}) {
 }
 
 function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[], navigate: (s: string) => void}) {
-  const [text, setText] = useStorage(title)
+  const [text, changeText] = useStorage(title)
   const [editing, setEditing] = useState(false)
   useEffect(() => {
     // quit edit mode when navigating
@@ -150,8 +156,10 @@ function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[
     if (e.key === '[' && e.target instanceof HTMLTextAreaElement) {
       const { target } = e
       const { selectionStart, selectionEnd } = target
-      const t = text ?? ''
-      setText(t.substring(0, selectionStart) + '[' + t.substring(selectionStart, selectionEnd) + ']' + t.substring(selectionEnd))
+      changeText(t => {
+        t.insertAt!(selectionEnd, ']')
+        t.insertAt!(selectionStart, '[')
+      })
       requestAnimationFrame(() => target.setSelectionRange(selectionStart + 1, selectionEnd + 1))
       e.preventDefault()
     }
@@ -171,7 +179,16 @@ function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[
         ? <ExpandingTextArea
             autoFocus
             value={text ?? ''}
-            onChange={(e: any) => setText(e.target.value)}
+            onChange={(e: any) => {
+              const op = opFromInput(e.target, text ?? '')
+              if (op) {
+                if (op.type === 'insert') {
+                  changeText(t => t.insertAt!(op.start, ...op.inserted))
+                } else if (op.type === 'remove') {
+                  changeText(t => t.deleteAt!(op.start, op.removed.length))
+                }
+              }
+            }}
             onKeyDown={onKeyDown}
             />
         : <section className="text"><PageText text={text ?? ""} /></section>
