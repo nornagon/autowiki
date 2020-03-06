@@ -95,6 +95,16 @@ function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[
       }
     }
   }
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === '[' && e.target instanceof HTMLTextAreaElement) {
+      const { target } = e
+      const { selectionStart, selectionEnd } = target
+      const t = text ?? ''
+      setText(t.substring(0, selectionStart) + '[' + t.substring(selectionStart, selectionEnd) + ']' + t.substring(selectionEnd))
+      requestAnimationFrame(() => target.setSelectionRange(selectionStart + 1, selectionEnd + 1))
+      e.preventDefault()
+    }
+  }
   const backlinksByPage = new Map<string, LinkInfo[]>()
   for (const l of backlinks) {
     if (!backlinksByPage.has(l.page)) {
@@ -107,7 +117,12 @@ function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[
     <article className="Page" onClick={onClick}>
       <h1>{title} {editing ? <button key="done" onClick={() => setEditing(false)}>done</button> : <button onClick={() => setEditing(true)}>edit</button>}</h1>
       {editing
-        ? <ExpandingTextArea autoFocus value={text ?? ''} onChange={(e: any) => setText(e.target.value)} />
+        ? <ExpandingTextArea
+            autoFocus
+            value={text ?? ''}
+            onChange={(e: any) => setText(e.target.value)}
+            onKeyDown={onKeyDown}
+            />
         : <section className="text"><PageText text={text ?? ""} /></section>
       }
       <h4>References</h4>

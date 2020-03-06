@@ -16,21 +16,30 @@
   border-left: 4px solid lightgray;
 }
 
+.Page ul, .Page ol {
+  padding-inline-start: 2em;
+}
+
 .table {
   border-spacing: 0;
   border-collapse: collapse;
 }
 
+.table > thead > tr > th, .table > tbody > tr > th, .table > tfoot > tr > th, .table > thead > tr > td, .table > tbody > tr > td, .table > tfoot > tr > td {
+  padding: 8px;
+  vertical-align: top;
+  border-top: 1px solid #ddd;
+}
 .table > thead > tr > th {
   vertical-align: bottom;
   border-bottom: 2px solid #ddd;
   box-sizing: border-box;
   padding: 2px 8px;
 }
-
-.table > tbody > tr > td {
-  border-top: 1px solid #ddd;
+.table > thead:first-child > tr:first-child > th, .table > thead:first-child > tr:first-child > td {
+  border-top: 0;
 }
+
 .table-striped > tbody > tr:nth-child(odd) > td, .table-striped > tbody > tr:nth-child(odd) > th {
   background-color: #f9f9f9;
 }
@@ -65,9 +74,12 @@
   visibility: hidden;
 }
 
-a.wikilink {
+a:link {
   text-decoration: none;
   color: #106ba3;
+}
+a:link:hover {
+  text-decoration: underline;
 }
 a.wikilink:before {
   content: '[[';
