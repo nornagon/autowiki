@@ -1,6 +1,57 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import * as Remarkable from 'remarkable';
 import './App.css';
+import Automerge, { DocSetHandler } from 'automerge';
+
+function* allLocalStorageKeys() {
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i)!
+    const v = localStorage.getItem(k)!
+    yield [k, v]
+  }
+}
+
+const docSet = new Automerge.DocSet<any>()
+for (const [k, v] of allLocalStorageKeys()) {
+  if (k.startsWith('automerge:')) {
+    const docId = k.substring(10)
+    docSet.setDoc(docId, Automerge.load(v))
+  }
+}
+docSet.registerHandler((docId, doc) => {
+  localStorage.setItem(`automerge:${docId}`, Automerge.save(doc))
+})
+
+// TODO: don't hardcode replication peers
+const ws = new WebSocket(`ws://localhost:3030/_changes`)
+ws.onopen = () => {
+  const conn = new Automerge.Connection(docSet, (msg) => {
+    ws.send(JSON.stringify(msg))
+  })
+  ws.onmessage = (e) => {
+    conn.receiveMsg(JSON.parse(e.data))
+  }
+  conn.open()
+}
+
+function useDocument<T = any>(id: string, initial: Automerge.Doc<T>): [Automerge.FreezeObject<T>, (fn: Automerge.ChangeFn<T>) => void] {
+  const [doc, setDoc] = useState(docSet.getDoc(id) ?? initial)
+  useEffect(() => {
+    const handler: DocSetHandler<T> = (docId, doc) => {
+      if (docId === id) {
+        setDoc(doc)
+      }
+    }
+    docSet.registerHandler(handler)
+    return () => {
+      docSet.unregisterHandler(handler)
+    }
+  }, [id])
+  const change = useCallback((fn: Automerge.ChangeFn<T>) => {
+    docSet.setDoc(id, Automerge.change(doc, fn))
+  }, [id, doc])
+  return [doc, change]
+}
 
 const useHistory = (): [string, (s: string) => void] => {
   const [pathname, setPathname] = useState(window.location.pathname)
@@ -21,17 +72,17 @@ const useHistory = (): [string, (s: string) => void] => {
 }
 
 function useStorage(key: string, initialValue: string | null = null): [string | null, (s: string) => void] {
-  const [value, setValue] = useState(localStorage.getItem(key) ?? initialValue)
-  useEffect(() => {
-    // TODO: IndexedDB
-    // TODO: navigator.storage.persist()
-    // TODO: remote backup
-    if (value)
-      localStorage.setItem(key, value)
-    else
-      localStorage.removeItem(key)
-  }, [key, value])
-  return [value, setValue]
+  const [wiki, changeWiki] = useDocument<any>("wiki", Automerge.from({}))
+  function setValue(s: string) {
+    changeWiki((doc) => {
+      doc[key] = s
+    })
+  }
+  return [wiki[key] ?? '', setValue]
+}
+
+function allPages() {
+  return Object.entries(docSet.getDoc("wiki"))
 }
 
 function ExpandingTextArea(opts: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -140,10 +191,8 @@ type LinkInfo = {page: string, context: string}
 
 function getLinksTo(pageTitle: string): LinkInfo[] {
   const links: LinkInfo[] = []
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i)!
+  for (const [k, v] of allPages()) {
     if (k === pageTitle) continue
-    const v = localStorage.getItem(k)!
     for (const link of extractLinks(v)) {
       if (link.href === pageTitle) {
         links.push({page: k, context: link.context})
