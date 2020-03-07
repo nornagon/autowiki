@@ -1,44 +1,36 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+> NOTE: this readme is currently _aspirational_, lots of this stuff doesn't
+> work yet, but I'd like it to!
 
-## Available Scripts
+[[Autowiki]] is a tool for creating networked documents. Autowiki is a [local-first](https://www.inkandswitch.com/local-first.html) app: you own all the data you put into it, and your data never leaves your own machine unless you want it to.
 
-In the project directory, you can run:
+### Try it out
 
-### `yarn start`
+Visit [$WEBSITE](https://web.site) to start editing right away in your browser. To back up your data, run a [replication peer](#replicationpeer). Replication peers can optionally publish a read-only version of your wiki.
 
-Runs the app in the development mode.<br />
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Data Model
 
-The page will reload if you make edits.<br />
-You will also see any lint errors in the console.
+Autowiki thinks of a wiki as a single document with many interlinked pages. All your data is stored locally, and optionally [replicated](#replicationpeer) to one or more remote sites. You can connect multiple editors to a replication peer, and edits will be synchronized automatically when they connect to the peer. Autowiki uses [automerge](https://github.com/automerge/automerge) under the hood to resolve edit conflicts automatically.
 
-### `yarn test`
+## Replication Peer
 
-Launches the test runner in the interactive watch mode.<br />
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Browsers are not designed for resilient storage, so Autowiki provides the ability to live-backup your data as you type. Replication peers also allow you to edit the same wiki from multiple documents, and keep all your changes synchronized.
 
-### `yarn build`
+To run a replication peer, you can use the `@autowiki/replication-peer` npm package:
 
-Builds the app for production to the `build` folder.<br />
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```
+$ npx @autowiki/replication-peer
+Listening on 0.0.0.0:3030...
+Secret: 202a20cd-059c-4ef9-a7ce-3f2aecef17f8
+```
 
-The build is minified and the filenames include the hashes.<br />
-Your app is ready to be deployed!
+To connect the Autowiki editor to the replication peer, enter its publicly-reachable address along with the secret. For instance, if your server is hosted at `my.server.net`, and the replication peer is listening on port 3030, enter `202a20cd-059c-4ef9-a7ce-3f2aecef17f8@my.server.net:3030` as the replication peer address.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Publishing
 
-### `yarn eject`
+Optionally, the replication peer can also publish a read-only copy of your wiki. To publish a wiki, pass the `--publish` option to `@autowiki/replication-peer`:
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+```
+$ npx @autowiki/replication-peer --publish
+```
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+The replication peer will publish the read-only version on the same port it listens for changes.
