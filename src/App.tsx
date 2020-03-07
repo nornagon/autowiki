@@ -215,6 +215,22 @@ function useDocumentTitle(title: string) {
   }, [title])
 }
 
+function ReplicationStateIndicator({state}: {state: Record<string, ReplicationState>}) {
+  const aggregateState = Object.values(state).reduce((m, o) => {
+    if (m === 'offline') {
+      return o !== 'offline' ? o : m
+    } else if (m === 'behind') {
+      return 'behind'
+    } else if (m === 'synced') {
+      return o === 'behind' ? o : m
+    }
+    return m
+  }, 'offline' as ReplicationState)
+  return <div style={{position: 'absolute', top: 20, right: 20, display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
+    <div style={{borderRadius: 999, width: 10, height: 10, backgroundColor: aggregateState === 'offline' ? 'red' : aggregateState === 'behind' ? 'orange' : 'green'}} />
+  </div>
+}
+
 function App() {
   const [pathname, navigate] = useHistory()
   const [peers, setPeers] = useState(['localhost:3030'])
@@ -227,7 +243,7 @@ function App() {
   return <>
     <Replicate docSet={docSet} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />
     <Page key={pageTitle} title={pageTitle} navigate={navigate} backlinks={backlinks} />
-    <pre>{JSON.stringify(peerState)}</pre>
+    <ReplicationStateIndicator state={peerState} />
   </>;
 }
 

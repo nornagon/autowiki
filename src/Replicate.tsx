@@ -9,24 +9,34 @@ function ReplicationPeer<T>({docSet, peer, onStateChange}: {docSet: Automerge.Do
   useEffect(() => {
     const protocol = window.location.protocol === 'https' ? 'wss' : 'ws'
     const ws = new ReconnectingWebSocket(`${protocol}://${peer}/_changes`)
-    stateChange.current('offline')
+    let lastState: ReplicationState | null = null
+    function setState(s: ReplicationState) {
+      if (s !== lastState)
+        stateChange.current(s)
+      lastState = s
+    }
+    setState('offline')
     ws.onopen = () => {
       const conn = new Automerge.Connection(docSet, (msg) => {
         ws.send(JSON.stringify(msg))
       })
       ws.onmessage = (e) => {
         conn.receiveMsg(JSON.parse(e.data))
-        stateChange.current('synced') // TODO: compare clocks
+        setState('synced') // TODO: compare clocks
       }
       ws.onclose = () => {
         conn.close()
-        stateChange.current('offline')
+        setState('offline')
       }
-      // TODO: monitor docset for changes to trigger 'behind' state
       conn.open()
-      stateChange.current('behind')
+      setState('behind')
     }
+    const handler = (docId: string, doc: Automerge.Doc<T>) => {
+      if (lastState === 'synced') setState('behind') // TODO: compare clocks
+    }
+    docSet.registerHandler(handler)
     return () => {
+      docSet.unregisterHandler(handler)
       ws.close()
     }
   }, [peer, docSet])
