@@ -3,6 +3,7 @@ import * as Remarkable from 'remarkable';
 import './App.css';
 import Automerge, { DocSetHandler } from 'automerge';
 import { opFromInput } from './textarea-op';
+import { Replicate, ReplicationState } from './Replicate';
 
 function* allLocalStorageKeys() {
   for (let i = 0; i < localStorage.length; i++) {
@@ -20,20 +21,9 @@ for (const [k, v] of allLocalStorageKeys()) {
   }
 }
 docSet.registerHandler((docId, doc) => {
+  // TODO: debounce, onbeforeunload
   localStorage.setItem(`automerge:${docId}`, Automerge.save(doc))
 })
-
-// TODO: don't hardcode replication peers
-const ws = new WebSocket(`ws://localhost:3030/_changes`)
-ws.onopen = () => {
-  const conn = new Automerge.Connection(docSet, (msg) => {
-    ws.send(JSON.stringify(msg))
-  })
-  ws.onmessage = (e) => {
-    conn.receiveMsg(JSON.parse(e.data))
-  }
-  conn.open()
-}
 
 function useDocument<T = any>(id: string, initial: Automerge.Doc<T>): [Automerge.FreezeObject<T>, (fn: Automerge.ChangeFn<T>) => void] {
   const [doc, setDoc] = useState(docSet.getDoc(id) ?? initial)
@@ -72,7 +62,7 @@ const useHistory = (): [string, (s: string) => void] => {
   return [pathname, navigate]
 }
 
-function useStorage(key: string, initialValue: string | null = null): [string | null, (f: (t: Automerge.Text) => void) => void] {
+function useStorage(key: string): [string | null, (f: (t: Automerge.Text) => void) => void] {
   const [wiki, changeWiki] = useDocument<any>("wiki", Automerge.from({}))
   function changeText(f: (t: Automerge.Text) => void) {
     changeWiki((doc) => {
@@ -227,14 +217,18 @@ function useDocumentTitle(title: string) {
 
 function App() {
   const [pathname, navigate] = useHistory()
+  const [peers, setPeers] = useState(['localhost:3030'])
+  const [peerState, setPeerState] = useState<Record<string, ReplicationState>>({})
   const pageTitle = decodeURIComponent(pathname.substr(1))
   useDocumentTitle(pageTitle)
 
   const backlinks = useMemo(() => getLinksTo(pageTitle), [pageTitle])
 
-  return (
+  return <>
+    <Replicate docSet={docSet} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />
     <Page key={pageTitle} title={pageTitle} navigate={navigate} backlinks={backlinks} />
-  );
+    <pre>{JSON.stringify(peerState)}</pre>
+  </>;
 }
 
 export default App;
