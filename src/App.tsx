@@ -167,6 +167,7 @@ function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[
         : <section className="text"><PageText text={text ?? ""} /></section>
       }
       <h4>References</h4>
+      {backlinkingPages.length === 0 ? <p><em>No pages link here.</em></p> : null}
       <ul>
         {backlinkingPages.map(page => <li key={page}>
           <a href={encodeURIComponent(page)} className="wikilink">{page}</a>:
