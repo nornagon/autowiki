@@ -130,13 +130,16 @@ function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[
       e.preventDefault()
     }
   }
-  const backlinksByPage = new Map<string, LinkInfo[]>()
-  for (const l of backlinks) {
-    if (!backlinksByPage.has(l.page)) {
-      backlinksByPage.set(l.page, [])
+  const backlinksByPage = useMemo(() => {
+    const backlinksByPage = new Map<string, LinkInfo[]>()
+    for (const l of backlinks) {
+      if (!backlinksByPage.has(l.page)) {
+        backlinksByPage.set(l.page, [])
+      }
+      backlinksByPage.get(l.page)!.push(l)
     }
-    backlinksByPage.get(l.page)!.push(l)
-  }
+    return backlinksByPage
+  }, [backlinks])
   const backlinkingPages = [...backlinksByPage.keys()].sort()
   return (
     <article className="Page" onClick={onClick}>
