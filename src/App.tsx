@@ -4,6 +4,7 @@ import Automerge, { DocSetHandler } from 'automerge';
 import { opFromInput } from './textarea-op';
 import { Replicate, ReplicationState } from './Replicate';
 import PageText, { extractLinks } from './PageText';
+import debounce from 'debounce';
 
 function* allLocalStorageKeys() {
   for (let i = 0; i < localStorage.length; i++) {
@@ -13,19 +14,27 @@ function* allLocalStorageKeys() {
   }
 }
 
-const docSet = new Automerge.DocSet<any>()
+type Wiki = Record<string, Automerge.Text>
+
+const docSet = new Automerge.DocSet<Wiki>()
 for (const [k, v] of allLocalStorageKeys()) {
   if (k.startsWith('automerge:')) {
     const docId = k.substring(10)
     docSet.setDoc(docId, Automerge.load(v))
   }
 }
-docSet.registerHandler((docId, doc) => {
-  // TODO: debounce, onbeforeunload
+let changesPending = false
+const save = debounce((docId: string, doc: Automerge.Doc<Wiki>) => {
   localStorage.setItem(`automerge:${docId}`, Automerge.save(doc))
+  changesPending = false
+}, 1000)
+window.onbeforeunload = () => changesPending
+docSet.registerHandler((docId, doc) => {
+  changesPending = true
+  save(docId, doc)
 })
 
-function useDocument<T = any>(id: string, initial: Automerge.Doc<T>): [Automerge.FreezeObject<T>, (fn: Automerge.ChangeFn<T>) => void] {
+function useDocument<T>(docSet: Automerge.DocSet<T>, id: string, initial: Automerge.Doc<T>): [Automerge.FreezeObject<T>, (fn: Automerge.ChangeFn<T>) => void] {
   const [doc, setDoc] = useState(docSet.getDoc(id) ?? initial)
   useEffect(() => {
     const handler: DocSetHandler<T> = (docId, doc) => {
@@ -37,10 +46,10 @@ function useDocument<T = any>(id: string, initial: Automerge.Doc<T>): [Automerge
     return () => {
       docSet.unregisterHandler(handler)
     }
-  }, [id])
+  }, [docSet, id])
   const change = useCallback((fn: Automerge.ChangeFn<T>) => {
     docSet.setDoc(id, Automerge.change(doc, fn))
-  }, [id, doc])
+  }, [docSet, id, doc])
   return [doc, change]
 }
 
@@ -63,7 +72,7 @@ const useHistory = (): [string, (s: string) => void] => {
 }
 
 function useStorage(key: string): [string | null, (f: (t: Automerge.Text) => void) => void] {
-  const [wiki, changeWiki] = useDocument<any>("wiki", Automerge.from({}))
+  const [wiki, changeWiki] = useDocument<Wiki>(docSet, "wiki", Automerge.from({}))
   function changeText(f: (t: Automerge.Text) => void) {
     changeWiki((doc) => {
       if (!(key in doc))
