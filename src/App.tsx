@@ -228,7 +228,7 @@ function App() {
     <Replicate docSet={docSet} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />
     <Page key={pageTitle} title={pageTitle} navigate={navigate} backlinks={backlinks} />
     <ReplicationStateIndicator state={peerState} onClick={() => {
-      const newPeers = prompt("Peers?", peers.join(','))?.split(',') ?? []
+      const newPeers = (prompt("Peers?", peers.join(','))?.split(',') ?? []).map(x => x.trim()).filter(x => x)
       setPeers(newPeers)
       localStorage.setItem('peers', JSON.stringify(newPeers))
     }} />
