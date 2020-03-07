@@ -8652,7 +8652,7 @@ relateurl@^0.2.7:
   resolved "https://registry.yarnpkg.com/relateurl/-/relateurl-0.2.7.tgz#54dbf377e51440aca90a4cd274600d3ff2d888a9"
   integrity sha1-VNvzd+UUQKypCkzSdGANP/LYiKk=
 
-remarkable-wikilink@^0.1.0:
+remarkable-wikilink@^0.1.1:
   version "0.1.1"
   resolved "https://registry.yarnpkg.com/remarkable-wikilink/-/remarkable-wikilink-0.1.1.tgz#0ecf2ecb6d227034c2f96edc74d47d4d396a103e"
   integrity sha512-+yBSvBLkyxvzPNYCh3bXf3mZyIjE4qH8ZkqQR0vy/oWSZA9SaiLHEDtarzJ5YbO4HVtb5trw2QM9eJQusWBFmQ==

@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import * as Remarkable from 'remarkable';
 import './App.css';
 import Automerge, { DocSetHandler } from 'automerge';
 import { opFromInput } from './textarea-op';
 import { Replicate, ReplicationState } from './Replicate';
+import PageText, { makeRemarkable } from './PageText';
 
 function* allLocalStorageKeys() {
   for (let i = 0; i < localStorage.length; i++) {
@@ -90,17 +90,7 @@ function ExpandingTextArea(opts: React.TextareaHTMLAttributes<HTMLTextAreaElemen
   )
 }
 
-function makeRemarkable() {
-  const md = new ((Remarkable as any).Remarkable)({
-    typographer: true
-  })
-  md.use(require('remarkable-wikilink'))
-  md.inline.ruler.enable(['mark'])
-  md.renderer.rules.table_open = () => {
-    return '<table class="table table-striped">\n'
-  }
-  return md
-}
+
 
 function extractLinks(text: string) {
   function extract(ast: any[], context: any): any[] {
@@ -114,13 +104,6 @@ function extractLinks(text: string) {
   }
   const ast = makeRemarkable().parse(text, {})
   return extract(ast, {})
-}
-
-function PageText({text}: {text: string}) {
-  const html = useMemo(() => {
-    return makeRemarkable().render(text)
-  }, [text])
-  return <div dangerouslySetInnerHTML={ { __html: html } } />
 }
 
 function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[], navigate: (s: string) => void}) {
@@ -238,6 +221,7 @@ function App() {
   const pageTitle = decodeURIComponent(pathname.substr(1))
   useDocumentTitle(pageTitle)
 
+  // TODO: this also depends on the other docs, but for now let's only recalculate it when you navigate.
   const backlinks = useMemo(() => getLinksTo(pageTitle), [pageTitle])
 
   return <>

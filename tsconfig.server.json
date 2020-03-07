@@ -1,6 +1,9 @@
 {
   "compilerOptions": {
     "target": "es6",
+    "lib": [
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -11,7 +14,8 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "outDir": "dist/server"
+    "outDir": "dist",
+    "jsx": "react"
   },
   "include": [
     "server"
