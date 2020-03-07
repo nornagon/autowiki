@@ -28,7 +28,7 @@ const save = debounce((docId: string, doc: Automerge.Doc<Wiki>) => {
   localStorage.setItem(`automerge:${docId}`, Automerge.save(doc))
   changesPending = false
 }, 1000)
-window.onbeforeunload = () => changesPending
+window.onbeforeunload = () => changesPending ? true : undefined
 docSet.registerHandler((docId, doc) => {
   changesPending = true
   save(docId, doc)
