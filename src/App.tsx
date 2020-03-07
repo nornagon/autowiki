@@ -139,11 +139,15 @@ function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[
             onChange={(e: any) => {
               const op = opFromInput(e.target, text ?? '')
               if (op) {
-                if (op.type === 'insert') {
-                  changeText(t => t.insertAt!(op.start, ...op.inserted))
-                } else if (op.type === 'remove') {
-                  changeText(t => t.deleteAt!(op.start, op.removed.length))
-                }
+                changeText(t => {
+                  const {start, removed, inserted} = op
+                  if (removed != null) {
+                    t.deleteAt!(start, removed.length)
+                  }
+                  if (inserted != null) {
+                    t.insertAt!(start, ...inserted)
+                  }
+                })
               }
             }}
             onKeyDown={onKeyDown}

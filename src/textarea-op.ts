@@ -7,9 +7,7 @@ function getInputEnd(element: HTMLTextAreaElement, previous: string, value: stri
 };
 
 type Op = {
-  type: 'insert', start: number, inserted: string
-} | {
-  type: 'remove', start: number, removed: string
+  start: number, inserted?: string, removed?: string
 }
 
 export function opFromInput(element: HTMLTextAreaElement, previous: string): Op | null {
@@ -44,15 +42,16 @@ export function opFromInput(element: HTMLTextAreaElement, previous: string): Op 
     }
   }
 
+  const op: Op = { start }
   if (previous.length !== start + end) {
     var removed = previous.slice(start, previous.length - end);
-    return { type: 'remove', start, removed }
+    op.removed = removed
   }
   if (value.length !== start + end) {
     var inserted = value.slice(start, value.length - end);
-    return { type: 'insert', start, inserted }
+    op.inserted = inserted
   }
-  return null
+  return op
 }
 
 /*
