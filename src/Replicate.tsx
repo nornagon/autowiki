@@ -1,5 +1,6 @@
 import Automerge from 'automerge'
 import React, { useRef, useEffect } from 'react'
+import ReconnectingWebSocket from 'reconnecting-websocket'
 export type ReplicationState = 'offline' | 'synced' | 'behind'
 
 function ReplicationPeer<T>({docSet, peer, onStateChange}: {docSet: Automerge.DocSet<T>, peer: string, onStateChange: (s: ReplicationState) => void}) {
@@ -7,7 +8,7 @@ function ReplicationPeer<T>({docSet, peer, onStateChange}: {docSet: Automerge.Do
   useEffect(() => { stateChange.current = onStateChange }, [onStateChange])
   useEffect(() => {
     const protocol = window.location.protocol === 'https' ? 'wss' : 'ws'
-    const ws = new WebSocket(`${protocol}://${peer}/_changes`)
+    const ws = new ReconnectingWebSocket(`${protocol}://${peer}/_changes`)
     stateChange.current('offline')
     ws.onopen = () => {
       const conn = new Automerge.Connection(docSet, (msg) => {
