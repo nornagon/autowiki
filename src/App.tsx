@@ -3,7 +3,7 @@ import './App.css';
 import Automerge, { DocSetHandler } from 'automerge';
 import { opFromInput } from './textarea-op';
 import { Replicate, ReplicationState } from './Replicate';
-import PageText, { makeRemarkable } from './PageText';
+import PageText, { extractLinks } from './PageText';
 
 function* allLocalStorageKeys() {
   for (let i = 0; i < localStorage.length; i++) {
@@ -88,22 +88,6 @@ function ExpandingTextArea(opts: React.TextareaHTMLAttributes<HTMLTextAreaElemen
       <textarea {...opts}></textarea>
     </div>
   )
-}
-
-
-
-function extractLinks(text: string) {
-  function extract(ast: any[], context: any): any[] {
-    return ast.flatMap((node) => {
-      if (node.type === 'wikilink_open') {
-        return [{href: node.href, context: context.content}]
-      } else if (node.children) {
-        return extract(node.children, node)
-      } else return []
-    })
-  }
-  const ast = makeRemarkable().parse(text, {})
-  return extract(ast, {})
 }
 
 function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[], navigate: (s: string) => void}) {
@@ -198,7 +182,7 @@ function useDocumentTitle(title: string) {
   }, [title])
 }
 
-function ReplicationStateIndicator({state}: {state: Record<string, ReplicationState>}) {
+function ReplicationStateIndicator({state, onClick}: {state: Record<string, ReplicationState>, onClick?: React.MouseEventHandler<HTMLDivElement>}) {
   const aggregateState = Object.values(state).reduce((m, o) => {
     if (m === 'offline') {
       return o !== 'offline' ? o : m
@@ -209,14 +193,14 @@ function ReplicationStateIndicator({state}: {state: Record<string, ReplicationSt
     }
     return m
   }, 'offline' as ReplicationState)
-  return <div style={{position: 'absolute', top: 20, right: 20, display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
+  return <div style={{position: 'absolute', top: 20, right: 20, display: 'flex', justifyContent: 'center', alignItems: 'center'}} onClick={onClick}>
     <div style={{borderRadius: 999, width: 10, height: 10, backgroundColor: aggregateState === 'offline' ? 'red' : aggregateState === 'behind' ? 'orange' : 'green'}} />
   </div>
 }
 
 function App() {
   const [pathname, navigate] = useHistory()
-  const [peers, setPeers] = useState(['localhost:3030'])
+  const [peers, setPeers] = useState<string[]>(() => JSON.parse(localStorage.getItem('peers') ?? '[]'))
   const [peerState, setPeerState] = useState<Record<string, ReplicationState>>({})
   const pageTitle = decodeURIComponent(pathname.substr(1))
   useDocumentTitle(pageTitle)
@@ -227,7 +211,11 @@ function App() {
   return <>
     <Replicate docSet={docSet} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />
     <Page key={pageTitle} title={pageTitle} navigate={navigate} backlinks={backlinks} />
-    <ReplicationStateIndicator state={peerState} />
+    <ReplicationStateIndicator state={peerState} onClick={() => {
+      const newPeers = prompt("Peers?", peers.join(','))?.split(',') ?? []
+      setPeers(newPeers)
+      localStorage.setItem('peers', JSON.stringify(newPeers))
+    }} />
   </>;
 }
 
