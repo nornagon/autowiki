@@ -20,6 +20,21 @@
   padding-inline-start: 2em;
 }
 
+.Page .para.selected {
+  background-color: burlywood;
+}
+
+.Page .para {
+  position: relative;
+}
+
+.Page .para .id {
+  position: absolute;
+  left: -50px;
+  font-family: monospace;
+  opacity: 0.3;
+}
+
 .table {
   border-spacing: 0;
   border-collapse: collapse;

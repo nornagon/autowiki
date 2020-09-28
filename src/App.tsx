@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import './App.css';
-import Automerge, { DocSetHandler } from 'automerge';
+import Automerge, { DocSetHandler, getObjectId } from 'automerge';
 import { opFromInput } from './textarea-op';
 import { Replicate, ReplicationState } from './Replicate';
 import PageText, { extractLinks } from './PageText';
@@ -71,7 +71,7 @@ const useHistory = (): [string, (s: string) => void] => {
   return [pathname, navigate]
 }
 
-function useStorage(key: string): [string | null, (f: (t: Automerge.Text) => void) => void] {
+function useTextStorage(key: string): [string | null, (f: (t: Automerge.Text) => void) => void] {
   const [wiki, changeWiki] = useDocument<Wiki>(docSet, "wiki", Automerge.from({}))
   function changeText(f: (t: Automerge.Text) => void) {
     changeWiki((doc) => {
@@ -81,6 +81,19 @@ function useStorage(key: string): [string | null, (f: (t: Automerge.Text) => voi
     })
   }
   return [wiki[key]?.toString() ?? '', changeText]
+}
+
+type Wiki2 = Record<string, any>
+function useStorage<T>(key: string, initial: () => T): [T | undefined, (f: (t: T) => void) => void] {
+  const [wiki, changeWiki] = useDocument<Wiki2>(docSet, "wiki", Automerge.from({}))
+  function change(f: (t: T) => void) {
+    changeWiki((doc) => {
+      if (!Object.prototype.hasOwnProperty.call(doc, key))
+        doc[key] = initial()
+      f(doc[key])
+    })
+  }
+  return [wiki[key], change]
 }
 
 function* allPages() {
@@ -99,8 +112,102 @@ function ExpandingTextArea(opts: React.TextareaHTMLAttributes<HTMLTextAreaElemen
   )
 }
 
+function Page2({title}: {title: string}) {
+  const [selected, setSelected] = useState(null as number | null)
+  const [editing, setEditing] = useState(false)
+  const [dataOrNull, changeData] = useStorage<Automerge.Text[]>(title, () => [new Automerge.Text()])
+  const data = dataOrNull || [new Automerge.Text()]
+
+  useEffect(() => {
+    if (!editing) {
+      const l = (e: KeyboardEvent) => {
+        if (e.key === 'ArrowUp') {
+          if (selected === 0) setSelected(null)
+          else if (selected === null) setSelected(data.length - 1)
+          else setSelected(selected - 1)
+        } else if (e.key === 'ArrowDown') {
+          if (selected === data.length - 1) setSelected(null)
+          else if (selected === null) setSelected(0)
+          else setSelected(selected + 1)
+        } else if (e.key === 'Enter' && selected !== null) {
+          e.preventDefault()
+          setEditing(true)
+        } else if (e.key === 'Escape') {
+          setSelected(null)
+        }
+      }
+      window.addEventListener('keydown', l)
+      return () => {
+        window.removeEventListener('keydown', l)
+      }
+    } else {
+      const l = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          setEditing(false)
+        }
+      }
+      window.addEventListener('keydown', l)
+      return () => {
+        window.removeEventListener('keydown', l)
+      }
+    }
+  }, [selected, editing, data.length])
+
+  return <article className="Page">
+    <h1>{title}</h1>
+    {data.map((text, i) => {
+      const id = getObjectId(text)
+      return <div className={`para ${selected === i ? "selected" : ""}`}>
+        <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(0, 3)}</a></div>
+        {editing && selected === i
+        ? <ExpandingTextArea
+            value={text}
+            autoFocus
+            onBlur={() => setEditing(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Backspace' && e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0 && selected > 0) {
+                // merge paras
+                changeData(d => {
+                  d[selected - 1].insertAt!(d[selected - 1].length, ...d[selected].toString())
+                  d.splice(selected, 1)
+                })
+                setSelected(selected - 1)
+              }
+            }}
+            onChange={(e: any) => {
+              const op = opFromInput(e.target, text?.toString() ?? '')
+              if (op && op.inserted === '\n' && op.removed == null && e.target.value.substr(op.start - 1, 2) === '\n\n') {
+                changeData(d => {
+                  //const str = d[selected].toString().substr(op.start);
+                  const deleted = (d[selected] as any).elems.splice(op.start - 1, d[selected].length - op.start + 1)
+                  const newText = new Automerge.Text() as any
+                  newText.elems.splice(0, 0, ...deleted.slice(1))
+                  d.splice(selected + 1, 0, newText)
+                })
+                setSelected(selected + 1)
+                return
+              }
+              if (op) {
+                changeData(d => {
+                  const {start, removed, inserted} = op
+                  if (removed != null) {
+                    d[selected].deleteAt!(start, removed.length)
+                  }
+                  if (inserted != null) {
+                    d[selected].insertAt!(start, ...inserted)
+                  }
+                })
+              }
+            }}
+            />
+        : text.toString()?.trim() ? <PageText text={text.toString()} /> : '\u00a0'}
+      </div>
+    })}
+  </article>
+}
+
 function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[], navigate: (s: string) => void}) {
-  const [text, changeText] = useStorage(title)
+  const [text, changeText] = useTextStorage(title)
   const [editing, setEditing] = useState(false)
   useEffect(() => {
     // quit edit mode when navigating
@@ -227,7 +334,8 @@ function App() {
 
   return <>
     <Replicate docSet={docSet} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />
-    <Page key={pageTitle} title={pageTitle} navigate={navigate} backlinks={backlinks} />
+    {/*<Page key={pageTitle} title={pageTitle} navigate={navigate} backlinks={backlinks} />*/}
+    <Page2 title={pageTitle} />
     <ReplicationStateIndicator state={peerState} onClick={() => {
       const newPeers = (prompt("Peers?", peers.join(','))?.split(',') ?? []).map(x => x.trim()).filter(x => x)
       setPeers(newPeers)
