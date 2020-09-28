@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useReducer } from 'react';
 import './App.css';
-import Automerge, { DocSetHandler, getObjectId } from 'automerge';
+import * as Y from 'yjs';
+import { IndexeddbPersistence } from 'y-indexeddb'
 import { opFromInput } from './textarea-op';
 import { Replicate, ReplicationState } from './Replicate';
 import PageText, { extractLinks } from './PageText';
@@ -14,44 +15,17 @@ function* allLocalStorageKeys() {
   }
 }
 
-type Wiki = Record<string, Automerge.Text>
+type Page = Y.Text
+type Wiki = Record<string, Page>
 
-const docSet = new Automerge.DocSet<Wiki>()
-for (const [k, v] of allLocalStorageKeys()) {
-  if (k.startsWith('automerge:')) {
-    const docId = k.substring(10)
-    docSet.setDoc(docId, Automerge.load(v))
-  }
-}
-let changesPending = false
-const save = debounce((docId: string, doc: Automerge.Doc<Wiki>) => {
-  localStorage.setItem(`automerge:${docId}`, Automerge.save(doc))
-  changesPending = false
-}, 1000)
-window.onbeforeunload = () => changesPending ? true : undefined
-docSet.registerHandler((docId, doc) => {
-  changesPending = true
-  save(docId, doc)
+const rootDoc = new Y.Doc()
+
+const indexeddbProvider = new IndexeddbPersistence('autowiki', rootDoc)
+indexeddbProvider.whenSynced.then(() => {
+  console.log('loaded data from indexed db')
+  console.log(rootDoc.toJSON())
 })
 
-function useDocument<T>(docSet: Automerge.DocSet<T>, id: string, initial: Automerge.Doc<T>): [Automerge.FreezeObject<T>, (fn: Automerge.ChangeFn<T>) => void] {
-  const [doc, setDoc] = useState(docSet.getDoc(id) ?? initial)
-  useEffect(() => {
-    const handler: DocSetHandler<T> = (docId, doc) => {
-      if (docId === id) {
-        setDoc(doc)
-      }
-    }
-    docSet.registerHandler(handler)
-    return () => {
-      docSet.unregisterHandler(handler)
-    }
-  }, [docSet, id])
-  const change = useCallback((fn: Automerge.ChangeFn<T>) => {
-    docSet.setDoc(id, Automerge.change(doc, fn))
-  }, [docSet, id, doc])
-  return [doc, change]
-}
 
 const useHistory = (): [string, (s: string) => void] => {
   const [pathname, setPathname] = useState(window.location.pathname)
@@ -71,36 +45,62 @@ const useHistory = (): [string, (s: string) => void] => {
   return [pathname, navigate]
 }
 
-function useTextStorage(key: string): [string | null, (f: (t: Automerge.Text) => void) => void] {
-  const [wiki, changeWiki] = useDocument<Wiki>(docSet, "wiki", Automerge.from({}))
-  function changeText(f: (t: Automerge.Text) => void) {
-    changeWiki((doc) => {
-      if (!(key in doc))
-        doc[key] = new Automerge.Text()
-      f(doc[key])
+function useTextStorage(key: string): [string | null, (f: (t: Page) => void) => void] {
+  function changeText(f: (t: Page) => void) {
+    rootDoc.transact(() => {
+      f(rootDoc.getText(key))
     })
   }
-  return [wiki[key]?.toString() ?? '', changeText]
+  return [rootDoc.getText(key).toString(), changeText]
 }
 
+/*
 type Wiki2 = Record<string, any>
 function useStorage<T>(key: string, initial: () => T): [T | undefined, (f: (t: T) => void) => void] {
-  const [wiki, changeWiki] = useDocument<Wiki2>(docSet, "wiki", Automerge.from({}))
   function change(f: (t: T) => void) {
-    changeWiki((doc) => {
-      if (!Object.prototype.hasOwnProperty.call(doc, key))
-        doc[key] = initial()
-      f(doc[key])
+    rootDoc.transact(() => {
+      if (!rootDoc.share.has(key))
+        initial()
+      f(rootDoc.share.get(key) as any)
     })
   }
   return [wiki[key], change]
 }
+*/
 
-function* allPages() {
+function useStorage<T>(key: string, initial: () => T): [T, (f: (t: T) => void) => void] {
+  const map = rootDoc.getMap('wiki')
+  if (!map.has(key)) {
+    const v = initial()
+    rootDoc.transact(() => {
+      map.set(key, v)
+    })
+  }
+  function change(f: (t: T) => void) {
+    rootDoc.transact(() => {
+      f(map.get(key))
+    })
+  }
+  const [, forceUpdate] = useReducer(x => x + 1, 0);
+  useEffect(() => {
+    const fn = (event: any, txn: Y.Transaction) => {
+      forceUpdate()
+    }
+    map.observeDeep(fn)
+    return () => {
+      map.unobserve(fn)
+    }
+  })
+  return [map.get(key), change]
+}
+
+function* allPages(): Generator<[string, string], any, unknown> {
+/*
   const doc = docSet.getDoc("wiki") ?? {}
   for (const k of Object.keys(doc)) {
     yield [k, doc[k].toString()]
   }
+  */
 }
 
 function ExpandingTextArea(opts: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -115,8 +115,11 @@ function ExpandingTextArea(opts: React.TextareaHTMLAttributes<HTMLTextAreaElemen
 function Page2({title}: {title: string}) {
   const [selected, setSelected] = useState(null as number | null)
   const [editing, setEditing] = useState(false)
-  const [dataOrNull, changeData] = useStorage<Automerge.Text[]>(title, () => [new Automerge.Text()])
-  const data = dataOrNull || [new Automerge.Text()]
+  const [data, changeData] = useStorage<Y.Array<Y.Text>>(title, () => {
+    const r = new Y.Array<Y.Text>()
+    r.push([new Y.Text()])
+    return r
+  })
 
   useEffect(() => {
     if (!editing) {
@@ -155,21 +158,23 @@ function Page2({title}: {title: string}) {
 
   return <article className="Page">
     <h1>{title}</h1>
-    {data.map((text, i) => {
-      const id = getObjectId(text)
+    {data.toArray().map((text, i) => {
+      console.log(text._item?.lastId.clock)
+      const id = text._item?.lastId.clock.toString()
       return <div className={`para ${selected === i ? "selected" : ""}`}>
         <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(0, 3)}</a></div>
         {editing && selected === i
         ? <ExpandingTextArea
-            value={text}
+            value={text.toString()}
             autoFocus
             onBlur={() => setEditing(false)}
             onKeyDown={(e) => {
               if (e.key === 'Backspace' && e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0 && selected > 0) {
                 // merge paras
                 changeData(d => {
-                  d[selected - 1].insertAt!(d[selected - 1].length, ...d[selected].toString())
-                  d.splice(selected, 1)
+                  const prev = d.get(selected - 1)
+                  prev.insert(prev.length, d.get(selected).toString())
+                  d.delete(selected, 1)
                 })
                 setSelected(selected - 1)
               }
@@ -179,10 +184,9 @@ function Page2({title}: {title: string}) {
               if (op && op.inserted === '\n' && op.removed == null && e.target.value.substr(op.start - 1, 2) === '\n\n') {
                 changeData(d => {
                   //const str = d[selected].toString().substr(op.start);
-                  const deleted = (d[selected] as any).elems.splice(op.start - 1, d[selected].length - op.start + 1)
-                  const newText = new Automerge.Text() as any
-                  newText.elems.splice(0, 0, ...deleted.slice(1))
-                  d.splice(selected + 1, 0, newText)
+                  const str = d.get(selected).toString().substr(op.start, d.get(selected).length - op.start + 1)
+                  d.get(selected).delete(op.start - 1, d.get(selected).length - op.start + 1)
+                  d.insert(selected + 1, [new Y.Text(str)])
                 })
                 setSelected(selected + 1)
                 return
@@ -191,10 +195,10 @@ function Page2({title}: {title: string}) {
                 changeData(d => {
                   const {start, removed, inserted} = op
                   if (removed != null) {
-                    d[selected].deleteAt!(start, removed.length)
+                    d.get(selected).delete(start, removed.length)
                   }
                   if (inserted != null) {
-                    d[selected].insertAt!(start, ...inserted)
+                    d.get(selected).insert(start, inserted)
                   }
                 })
               }
@@ -206,6 +210,7 @@ function Page2({title}: {title: string}) {
   </article>
 }
 
+/*
 function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[], navigate: (s: string) => void}) {
   const [text, changeText] = useTextStorage(title)
   const [editing, setEditing] = useState(false)
@@ -284,6 +289,7 @@ function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[
     </article>
   )
 }
+*/
 
 type LinkInfo = {page: string, context: string}
 
@@ -323,6 +329,14 @@ function ReplicationStateIndicator({state, onClick}: {state: Record<string, Repl
 }
 
 function App() {
+  const [synced, setSynced] = useState(false)
+  useEffect(() => {
+    indexeddbProvider.whenSynced.then(() => {
+      console.log('loaded data from indexed db')
+      setSynced(true)
+      console.log(rootDoc.toJSON())
+    })
+  }, [])
   const [pathname, navigate] = useHistory()
   const [peers, setPeers] = useState<string[]>(() => JSON.parse(localStorage.getItem('peers') ?? '[]'))
   const [peerState, setPeerState] = useState<Record<string, ReplicationState>>({})
@@ -331,9 +345,10 @@ function App() {
 
   // TODO: this also depends on the other docs, but for now let's only recalculate it when you navigate.
   const backlinks = useMemo(() => getLinksTo(pageTitle), [pageTitle])
+  if (!synced) return <>Loading...</>
 
   return <>
-    <Replicate docSet={docSet} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />
+    {/*<Replicate docSet={docSet} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />*/}
     {/*<Page key={pageTitle} title={pageTitle} navigate={navigate} backlinks={backlinks} />*/}
     <Page2 title={pageTitle} />
     <ReplicationStateIndicator state={peerState} onClick={() => {
