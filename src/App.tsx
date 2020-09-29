@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useReducer } from 'react';
+import React, { useEffect, useState, useMemo, useReducer, useRef } from 'react';
 import './App.css';
 import * as Y from 'yjs';
 import { IndexeddbPersistence } from 'y-indexeddb'
@@ -120,6 +120,13 @@ function Page2({title}: {title: string}) {
     r.push([new Y.Text()])
     return r
   })
+  const selectedEl = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (selectedEl.current) {
+      selectedEl.current.scrollIntoView({block: "nearest"})
+    }
+  }, [selected])
 
   useEffect(() => {
     if (!editing) {
@@ -128,15 +135,18 @@ function Page2({title}: {title: string}) {
           if (selected === 0) setSelected(null)
           else if (selected === null) setSelected(data.length - 1)
           else setSelected(selected - 1)
+          e.preventDefault()
         } else if (e.key === 'ArrowDown') {
           if (selected === data.length - 1) setSelected(null)
           else if (selected === null) setSelected(0)
           else setSelected(selected + 1)
-        } else if (e.key === 'Enter' && selected !== null) {
           e.preventDefault()
+        } else if (e.key === 'Enter' && selected !== null) {
           setEditing(true)
+          e.preventDefault()
         } else if (e.key === 'Escape') {
           setSelected(null)
+          e.preventDefault()
         }
       }
       window.addEventListener('keydown', l)
@@ -159,9 +169,8 @@ function Page2({title}: {title: string}) {
   return <article className="Page">
     <h1>{title}</h1>
     {data.toArray().map((text, i) => {
-      console.log(text._item?.lastId.clock)
       const id = text._item?.lastId.clock.toString()
-      return <div className={`para ${selected === i ? "selected" : ""}`}>
+      return <div className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null}>
         <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(0, 3)}</a></div>
         {editing && selected === i
         ? <ExpandingTextArea
