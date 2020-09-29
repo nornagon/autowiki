@@ -352,9 +352,29 @@ function App() {
   const pageTitle = decodeURIComponent(pathname.substr(1))
   useDocumentTitle(pageTitle)
 
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (e.target instanceof HTMLElement) {
+        if (e.target.tagName.toLowerCase() === 'a' && e.target.classList.contains('wikilink')) {
+          const target = e.target.getAttribute('href')
+          if (target) {
+            navigate(target)
+            e.preventDefault()
+            return
+          }
+        }
+      }
+    }
+    window.addEventListener('click', onClick)
+    return () => {
+      window.removeEventListener('click', onClick)
+    }
+  }, [navigate])
+
   // TODO: this also depends on the other docs, but for now let's only recalculate it when you navigate.
   const backlinks = useMemo(() => getLinksTo(pageTitle), [pageTitle])
   if (!synced) return <>Loading...</>
+
 
   return <>
     {/*<Replicate docSet={docSet} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />*/}
