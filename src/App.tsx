@@ -5,27 +5,12 @@ import { IndexeddbPersistence } from 'y-indexeddb'
 import { opFromInput } from './textarea-op';
 import { Replicate, ReplicationState } from './Replicate';
 import PageText, { extractLinks } from './PageText';
-import debounce from 'debounce';
 
-function* allLocalStorageKeys() {
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i)!
-    const v = localStorage.getItem(k)!
-    yield [k, v]
-  }
-}
-
-type Page = Y.Text
-type Wiki = Record<string, Page>
+type Page = Y.Array<Y.Text>
 
 const rootDoc = new Y.Doc()
 
 const indexeddbProvider = new IndexeddbPersistence('autowiki', rootDoc)
-indexeddbProvider.whenSynced.then(() => {
-  console.log('loaded data from indexed db')
-  console.log(rootDoc.toJSON())
-})
-
 
 const useHistory = (): [string, (s: string) => void] => {
   const [pathname, setPathname] = useState(window.location.pathname)
@@ -44,29 +29,6 @@ const useHistory = (): [string, (s: string) => void] => {
   }, [])
   return [pathname, navigate]
 }
-
-function useTextStorage(key: string): [string | null, (f: (t: Page) => void) => void] {
-  function changeText(f: (t: Page) => void) {
-    rootDoc.transact(() => {
-      f(rootDoc.getText(key))
-    })
-  }
-  return [rootDoc.getText(key).toString(), changeText]
-}
-
-/*
-type Wiki2 = Record<string, any>
-function useStorage<T>(key: string, initial: () => T): [T | undefined, (f: (t: T) => void) => void] {
-  function change(f: (t: T) => void) {
-    rootDoc.transact(() => {
-      if (!rootDoc.share.has(key))
-        initial()
-      f(rootDoc.share.get(key) as any)
-    })
-  }
-  return [wiki[key], change]
-}
-*/
 
 function useStorage<T>(key: string, initial: () => T): [T, (f: (t: T) => void) => void] {
   const map = rootDoc.getMap('wiki')
@@ -94,13 +56,11 @@ function useStorage<T>(key: string, initial: () => T): [T, (f: (t: T) => void) =
   return [map.get(key), change]
 }
 
-function* allPages(): Generator<[string, string], any, unknown> {
-/*
-  const doc = docSet.getDoc("wiki") ?? {}
-  for (const k of Object.keys(doc)) {
-    yield [k, doc[k].toString()]
+function* allPages(): Generator<[string, Page], any, unknown> {
+  const doc = rootDoc.getMap('wiki')
+  for (const k of doc.keys()) {
+    yield [k, doc.get(k)]
   }
-  */
 }
 
 function ExpandingTextArea(opts: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -112,7 +72,7 @@ function ExpandingTextArea(opts: React.TextareaHTMLAttributes<HTMLTextAreaElemen
   )
 }
 
-function Page2({title}: {title: string}) {
+function Page({title}: {title: string}) {
   const [selected, setSelected] = useState(null as number | null)
   const [editing, setEditing] = useState(false)
   const [data, changeData] = useStorage<Y.Array<Y.Text>>(title, () => {
@@ -186,6 +146,16 @@ function Page2({title}: {title: string}) {
                   d.delete(selected, 1)
                 })
                 setSelected(selected - 1)
+              }
+              if (e.key === '[') {
+                const { currentTarget } = e
+                const { selectionStart, selectionEnd } = currentTarget
+                changeData(d => {
+                  d.get(selected).insert(selectionEnd, ']')
+                  d.get(selected).insert(selectionStart, '[')
+                })
+                requestAnimationFrame(() => currentTarget.setSelectionRange(selectionStart + 1, selectionEnd + 1))
+                e.preventDefault()
               }
             }}
             onChange={(e: any) => {
@@ -300,13 +270,55 @@ function Page({title, navigate, backlinks}: {title: string, backlinks: LinkInfo[
 }
 */
 
+function Backlinks({backlinks}: {backlinks: LinkInfo[]}) {
+  const backlinksByPage = useMemo(() => {
+    const backlinksByPage = new Map<string, LinkInfo[]>()
+    for (const l of backlinks) {
+      if (!backlinksByPage.has(l.page)) {
+        backlinksByPage.set(l.page, [])
+      }
+      backlinksByPage.get(l.page)!.push(l)
+    }
+    return backlinksByPage
+  }, [backlinks])
+  const backlinkingPages = [...backlinksByPage.keys()].sort()
+  return <article className="Page">
+    <h4>References</h4>
+    {backlinkingPages.length === 0 ? <p><em>No pages link here.</em></p> : null}
+    <ul>
+      {backlinkingPages.map(page => <li key={page}>
+        <a href={encodeURIComponent(page)} className="wikilink">{page}</a>:
+        <ul>{backlinksByPage.get(page)!.map((l, i) => <li key={i}><PageText text={l.context} /></li>)}</ul>
+      </li>)}
+    </ul>
+  </article>
+}
+
 type LinkInfo = {page: string, context: string}
+
+function flattenPage(p: Page): string {
+  return p.toArray().join('\n\n')
+}
+
+function getBlocksLinkingTo(pageTitle: string): LinkInfo[] {
+  const links: LinkInfo[] = []
+  for (const [k, v] of allPages()) {
+    if (k === pageTitle) continue
+    for (const block of v) {
+      for (const link of extractLinks(block.toString())) {
+        if (link.href === pageTitle)
+          links.push({page: k, context: block.toString()})
+      }
+    }
+  }
+  return links
+}
 
 function getLinksTo(pageTitle: string): LinkInfo[] {
   const links: LinkInfo[] = []
   for (const [k, v] of allPages()) {
     if (k === pageTitle) continue
-    for (const link of extractLinks(v)) {
+    for (const link of extractLinks(flattenPage(v))) {
       if (link.href === pageTitle) {
         links.push({page: k, context: link.context})
       }
@@ -343,7 +355,6 @@ function App() {
     indexeddbProvider.whenSynced.then(() => {
       console.log('loaded data from indexed db')
       setSynced(true)
-      console.log(rootDoc.toJSON())
     })
   }, [])
   const [pathname, navigate] = useHistory()
@@ -372,14 +383,13 @@ function App() {
   }, [navigate])
 
   // TODO: this also depends on the other docs, but for now let's only recalculate it when you navigate.
-  const backlinks = useMemo(() => getLinksTo(pageTitle), [pageTitle])
+  const backlinks = useMemo(() => getBlocksLinkingTo(pageTitle), [pageTitle, synced])
   if (!synced) return <>Loading...</>
-
 
   return <>
     {/*<Replicate docSet={docSet} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />*/}
-    {/*<Page key={pageTitle} title={pageTitle} navigate={navigate} backlinks={backlinks} />*/}
-    <Page2 title={pageTitle} />
+    <Page key={pageTitle} title={pageTitle} />
+    <Backlinks backlinks={backlinks} />
     <ReplicationStateIndicator state={peerState} onClick={() => {
       const newPeers = (prompt("Peers?", peers.join(','))?.split(',') ?? []).map(x => x.trim()).filter(x => x)
       setPeers(newPeers)
