@@ -50,7 +50,7 @@ function useStorage<T>(key: string, initial: () => T): [T, (f: (t: T) => void) =
     }
     map.observeDeep(fn)
     return () => {
-      map.unobserve(fn)
+      map.unobserveDeep(fn)
     }
   })
   return [map.get(key), change]
