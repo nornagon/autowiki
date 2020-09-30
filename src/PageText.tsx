@@ -1,11 +1,13 @@
 import React, { useMemo } from "react"
 import * as Remarkable from 'remarkable';
+import { linkify } from 'remarkable/linkify';
 
 export function makeRemarkable() {
   const md = new ((Remarkable as any).Remarkable)({
     typographer: true
   })
   md.use(require('remarkable-wikilink'))
+  md.use(linkify)
   md.inline.ruler.enable(['mark'])
   md.renderer.rules.table_open = () => {
     return '<table class="table table-striped">\n'
