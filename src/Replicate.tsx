@@ -1,14 +1,15 @@
-import Automerge from 'automerge'
 import React, { useRef, useEffect } from 'react'
-import ReconnectingWebSocket from 'reconnecting-websocket'
+import { WebsocketProvider } from 'y-websocket';
+import * as Y from 'yjs';
+
 export type ReplicationState = 'offline' | 'synced' | 'behind'
 
-function ReplicationPeer<T>({docSet, peer, onStateChange}: {docSet: Automerge.DocSet<T>, peer: string, onStateChange: (s: ReplicationState) => void}) {
+function ReplicationPeer({doc, peer, onStateChange}: {doc: Y.Doc, peer: string, onStateChange: (s: ReplicationState) => void}) {
   const stateChange = useRef(onStateChange)
   useEffect(() => { stateChange.current = onStateChange }, [onStateChange])
   useEffect(() => {
     const protocol = window.location.protocol === 'https' ? 'wss' : 'ws'
-    const ws = new ReconnectingWebSocket(`${protocol}://${peer}/_changes`)
+    const wsProvider = new WebsocketProvider(`${protocol}://${peer}`, 'autowiki', doc)
     let lastState: ReplicationState | null = null
     function setState(s: ReplicationState) {
       if (s !== lastState)
@@ -16,33 +17,24 @@ function ReplicationPeer<T>({docSet, peer, onStateChange}: {docSet: Automerge.Do
       lastState = s
     }
     setState('offline')
-    ws.onopen = () => {
-      const conn = new Automerge.Connection(docSet, (msg) => {
-        ws.send(JSON.stringify(msg))
-      })
-      ws.onmessage = (e) => {
-        conn.receiveMsg(JSON.parse(e.data))
-        setState('synced') // TODO: compare clocks
-      }
-      ws.onclose = () => {
-        conn.close()
+    wsProvider.on('status', (event: { status: 'connected' | 'disconnected' }) => {
+      if (event.status === 'connected') {
+        setState('behind')
+      } else if (event.status === 'disconnected') {
         setState('offline')
       }
-      conn.open()
-      setState('behind')
-    }
-    const handler = (docId: string, doc: Automerge.Doc<T>) => {
-      if (lastState === 'synced') setState('behind') // TODO: compare clocks
-    }
-    docSet.registerHandler(handler)
+    })
+    wsProvider.on('sync', (synced: boolean) => {
+      if (!synced && lastState === 'synced') setState('behind')
+      if (synced) setState('synced')
+    })
     return () => {
-      docSet.unregisterHandler(handler)
-      ws.close()
+      wsProvider.destroy()
     }
-  }, [peer, docSet])
+  }, [peer, doc])
   return null
 }
 
-export function Replicate<T>({docSet, peers, onStateChange}: {docSet: Automerge.DocSet<T>, peers: string[], onStateChange: (peer: string, state: ReplicationState) => void}) {
-  return <>{peers.map(p => <ReplicationPeer docSet={docSet} peer={p} key={p} onStateChange={s => onStateChange(p, s)} />)}</>
+export function Replicate({doc, peers, onStateChange}: {doc: Y.Doc, peers: string[], onStateChange: (peer: string, state: ReplicationState) => void}) {
+  return <>{peers.map(p => <ReplicationPeer doc={doc} peer={p} key={p} onStateChange={s => onStateChange(p, s)} />)}</>
 }

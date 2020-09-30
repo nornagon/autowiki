@@ -313,7 +313,7 @@ function App() {
   if (!synced) return <>Loading...</>
 
   return <>
-    {/*<Replicate docSet={docSet} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />*/}
+    <Replicate doc={rootDoc} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />
     <Page key={pageTitle} title={pageTitle} />
     <Backlinks backlinks={backlinks} />
     <ReplicationStateIndicator state={peerState} onClick={() => {
