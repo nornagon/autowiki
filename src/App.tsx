@@ -125,12 +125,19 @@ function Page({title}: {title: string}) {
       }
     }
   }, [selected, editing, data.length])
+  
+  function onClickBlock(e: React.MouseEvent<HTMLDivElement>, i: number) {
+    if (!(e.target instanceof HTMLElement && e.target.nodeName === 'A')) {
+      setSelected(i)
+      setEditing(true)
+    }
+  }
 
   return <article className="Page">
     <h1>{title}</h1>
     {data.toArray().map((text, i) => {
       const id = text._item?.lastId.clock.toString()
-      return <div className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null}>
+      return <div className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null} onClick={e => onClickBlock(e, i)}>
         <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(0, 3)}</a></div>
         {editing && selected === i
         ? <ExpandingTextArea

@@ -21,7 +21,7 @@
 }
 
 .Page .para.selected {
-  background-color: burlywood;
+  background-color: cornsilk;
 }
 
 .Page .para {
@@ -103,4 +103,7 @@ a.wikilink:before {
 a.wikilink:after {
   content: ']]';
   color: #a7b6c2;
+}
+a.wikilink:visited {
+  color: #106ba3;
 }
