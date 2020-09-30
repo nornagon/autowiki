@@ -72,6 +72,30 @@ function ExpandingTextArea(opts: React.TextareaHTMLAttributes<HTMLTextAreaElemen
   )
 }
 
+// http://isthe.com/chongo/tech/comp/fnv/
+// FNV1a:
+// hash = offset_basis
+// for each octet_of_data to be hashed
+//   hash = hash xor octet_of_data
+//   hash = hash * FNV_prime
+// return hash
+// 32 bit FNV_prime = 224 + 28 + 0x93 = 16777619
+// 32 bit offset_basis = 2166136261
+function fnvHash(bytes: Iterable<number>) {
+  const offset_basis = 2166136261
+  const FNV_prime = 16777619
+  let hash = offset_basis
+  for (const byte of bytes) {
+    hash = hash ^ byte
+    hash = Math.imul(hash, FNV_prime)
+  }
+  return hash >>> 0
+}
+
+function fnvHashInt32s(int32s: number[]) {
+  return fnvHash(Uint32Array.from(int32s))
+}
+
 function Page({title}: {title: string}) {
   const [selected, setSelected] = useState(null as number | null)
   const [editing, setEditing] = useState(false)
@@ -125,7 +149,7 @@ function Page({title}: {title: string}) {
       }
     }
   }, [selected, editing, data.length])
-  
+
   function onClickBlock(e: React.MouseEvent<HTMLDivElement>, i: number) {
     if (!(e.target instanceof HTMLElement && e.target.nodeName === 'A')) {
       setSelected(i)
@@ -133,12 +157,17 @@ function Page({title}: {title: string}) {
     }
   }
 
+  function mixedId(id: Y.ID): number {
+    return id ? fnvHashInt32s([id.client, id.clock]) : 0
+  }
+
   return <article className="Page">
     <h1>{title}</h1>
     {data.toArray().map((text, i) => {
-      const id = text._item?.lastId.clock.toString()
+      const idNum = mixedId(text._item?.lastId ?? {client: 0, clock: 0})
+      const id = idNum.toString(16).padStart(8, '0')
       return <div className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null} onClick={e => onClickBlock(e, i)}>
-        <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(0, 3)}</a></div>
+        <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(5)}</a></div>
         {editing && selected === i
         ? <ExpandingTextArea
             value={text.toString()}
@@ -222,10 +251,6 @@ function Backlinks({backlinks}: {backlinks: LinkInfo[]}) {
 
 type LinkInfo = {page: string, context: string}
 
-function flattenPage(p: Page): string {
-  return p.toArray().join('\n\n')
-}
-
 function getBlocksLinkingTo(pageTitle: string): LinkInfo[] {
   const links: LinkInfo[] = []
   for (const [k, v] of allPages()) {
@@ -234,19 +259,6 @@ function getBlocksLinkingTo(pageTitle: string): LinkInfo[] {
       for (const link of extractLinks(block.toString())) {
         if (link.href === pageTitle)
           links.push({page: k, context: block.toString()})
-      }
-    }
-  }
-  return links
-}
-
-function getLinksTo(pageTitle: string): LinkInfo[] {
-  const links: LinkInfo[] = []
-  for (const [k, v] of allPages()) {
-    if (k === pageTitle) continue
-    for (const link of extractLinks(flattenPage(v))) {
-      if (link.href === pageTitle) {
-        links.push({page: k, context: link.context})
       }
     }
   }
