@@ -81,7 +81,7 @@ function ExpandingTextArea(opts: React.TextareaHTMLAttributes<HTMLTextAreaElemen
 // return hash
 // 32 bit FNV_prime = 224 + 28 + 0x93 = 16777619
 // 32 bit offset_basis = 2166136261
-function fnvHash(bytes: Iterable<number>) {
+function fnvHash(bytes: Iterable<number>): number {
   const offset_basis = 2166136261
   const FNV_prime = 16777619
   let hash = offset_basis
@@ -92,8 +92,12 @@ function fnvHash(bytes: Iterable<number>) {
   return hash >>> 0
 }
 
-function fnvHashInt32s(int32s: number[]) {
+function fnvHashInt32s(int32s: number[]): number {
   return fnvHash(Uint32Array.from(int32s))
+}
+
+function mixedId(id: Y.ID): number {
+  return id ? fnvHashInt32s([id.client, id.clock]) : 0
 }
 
 function Page({title}: {title: string}) {
@@ -157,17 +161,13 @@ function Page({title}: {title: string}) {
     }
   }
 
-  function mixedId(id: Y.ID): number {
-    return id ? fnvHashInt32s([id.client, id.clock]) : 0
-  }
-
   return <article className="Page">
     <h1>{title}</h1>
     {data.toArray().map((text, i) => {
       const idNum = mixedId(text._item?.lastId ?? {client: 0, clock: 0})
       const id = idNum.toString(16).padStart(8, '0')
       return <div className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null} onClick={e => onClickBlock(e, i)}>
-        <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(5)}</a></div>
+        <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(0, 3) ?? ''}</a></div>
         {editing && selected === i
         ? <ExpandingTextArea
             value={text.toString()}
