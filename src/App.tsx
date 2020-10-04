@@ -178,6 +178,26 @@ function Page({title}: {title: string}) {
   const textarea = useRef<HTMLTextAreaElement>(null)
 
   function onClickBlock(e: React.MouseEvent<HTMLDivElement>, i: number) {
+    if (e.target instanceof Element && e.target.nodeName === 'INPUT' && e.target.getAttribute('type')?.toLowerCase() === 'checkbox') {
+      const { nextElementSibling } = e.target
+      if (nextElementSibling && nextElementSibling.hasAttribute('x-pos')) {
+        changeData(d => {
+          // TODO: this is a hack, we should encode the source position of the checkbox during parsing
+          const text = d.get(i)
+          const pos = +nextElementSibling.getAttribute('x-pos')! - 3
+          const str = text.toString()
+          if (str[pos] === ' ') {
+            text.delete(pos, 1)
+            text.insert(pos, 'x')
+          } else if (str[pos] === 'x') {
+            text.delete(pos, 1)
+            text.insert(pos, ' ')
+          }
+        })
+      }
+      e.preventDefault()
+      return
+    }
     if (!(e.target instanceof Element && (e.target.nodeName === 'A' || e.target.nodeName === 'SUMMARY'))) {
       setSelected(i)
       setEditing(true)

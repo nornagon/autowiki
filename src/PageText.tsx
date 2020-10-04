@@ -9,6 +9,14 @@ import u from 'unist-builder'
 import visit from 'unist-util-visit';
 import wikiLink from 'remark-wiki-link';
 
+function makeCheckboxesEnabled() {
+  return function(tree: any) {
+    visit(tree, ((e: any) => e.type === 'element' && e.tagName === 'input' && e.properties.type === 'checkbox') as any, (node) => {
+      delete (node as any).properties.disabled
+    })
+  }
+}
+
 function pipeline() {
   return unified()
     .use(markdown)
@@ -24,12 +32,12 @@ function pipeline() {
           var value = node.value ? node.value + '\n' : ''
           var lang = node.lang && (node.lang as any).match(/^[^ \t]+(?=[ \t]|$)/)
           var props: any = {}
-        
+
           if (lang) {
             props.className = ['language-' + lang]
           }
           props['x-pos'] = node.position!.start.offset! + 4 + (lang?.length ?? 0)
-        
+
           return h((node as any).position, 'pre', [h(node, 'code', props, [u('text', value)])])
         },
         inlineCode(h, node: any) {
@@ -46,6 +54,7 @@ function pipeline() {
         }
       }
     })
+    .use(makeCheckboxesEnabled)
     .use(raw)
     .use(stringify)
 }
