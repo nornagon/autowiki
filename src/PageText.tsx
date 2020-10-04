@@ -58,7 +58,6 @@ function renderMarkdownToHtml(text: string) {
 
 export default function PageText({text}: {text: string}) {
   const html = useMemo(() => {
-    console.log(pipeline().parse(text))
     return renderMarkdownToHtml(text)
   }, [text])
   return <div dangerouslySetInnerHTML={ { __html: html } } />

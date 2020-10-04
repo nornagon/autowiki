@@ -163,6 +163,12 @@ function Page({title}: {title: string}) {
           setEditing(false)
         }
       }
+      function blur(e: MouseEvent) {
+        if (e.target !== textarea.current) {
+          setEditing(false)
+        }
+      }
+      window.addEventListener('mousedown', blur)
       window.addEventListener('keydown', l)
       return () => {
         window.removeEventListener('keydown', l)
@@ -201,7 +207,6 @@ function Page({title}: {title: string}) {
             ref={textarea}
             value={text.toString()}
             autoFocus
-            onBlur={() => setEditing(false)}
             onKeyDown={(e) => {
               if (e.key === 'Backspace' && e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0 && selected > 0) {
                 // merge paras
