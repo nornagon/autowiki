@@ -20,6 +20,7 @@ const useHistory = (): [string, (s: string) => void] => {
   function navigate(href: string) {
     window.history.pushState(null, '', href)
     setPathname(window.location.pathname)
+    window.scrollTo(0, 0)
   }
   useEffect(() => {
     window.addEventListener('popstate', handlePopState)
