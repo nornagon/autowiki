@@ -157,7 +157,7 @@ function Page({title}: {title: string}) {
   const textarea = useRef<HTMLTextAreaElement>(null)
 
   function onClickBlock(e: React.MouseEvent<HTMLDivElement>, i: number) {
-    if (!(e.target instanceof HTMLElement && e.target.nodeName === 'A')) {
+    if (!(e.target instanceof Element && (e.target.nodeName === 'A' || e.target.nodeName === 'SUMMARY'))) {
       setSelected(i)
       setEditing(true)
       const { target } = e
