@@ -101,6 +101,14 @@ function mixedId(id: Y.ID): number {
   return id ? fnvHashInt32s([id.client, id.clock]) : 0
 }
 
+function findNearestParent(node: Node, fn: (n: Element) => boolean): Element | null {
+  let e: Element | null = node instanceof Element ? node : node.parentElement
+  while (e && !fn(e)) {
+    e = e.parentElement
+  }
+  return e
+}
+
 function Page({title}: {title: string}) {
   const [selected, setSelected] = useState(null as number | null)
   const [editing, setEditing] = useState(false)
@@ -132,6 +140,12 @@ function Page({title}: {title: string}) {
           e.preventDefault()
         } else if (e.key === 'Enter' && selected !== null) {
           setEditing(true)
+          requestAnimationFrame(() => {
+            if (textarea.current) {
+              const length = textarea.current.value.length
+              textarea.current.setSelectionRange(length, length)
+            }
+          })
           e.preventDefault()
         } else if (e.key === 'Escape') {
           setSelected(null)
@@ -160,10 +174,12 @@ function Page({title}: {title: string}) {
     if (!(e.target instanceof Element && (e.target.nodeName === 'A' || e.target.nodeName === 'SUMMARY'))) {
       setSelected(i)
       setEditing(true)
-      const { target } = e
-      if (target && target instanceof Element) {
-        if (target.hasAttribute('x-pos')) {
-          const off = +(target.getAttribute('x-pos') || 0) + (window.getSelection()?.anchorOffset || 0)
+      // anchorNode is the node in which the selection begins. (focusNode is where it ends.)
+      const { anchorNode, anchorOffset } = window.getSelection() ?? {}
+      if (anchorNode) {
+        const nearestPos = findNearestParent(anchorNode, e => e.hasAttribute('x-pos'))
+        if (nearestPos) {
+          const off = +(nearestPos.getAttribute('x-pos')!) + anchorOffset!
           requestAnimationFrame(() => {
             textarea.current?.setSelectionRange(off, off)
           })
