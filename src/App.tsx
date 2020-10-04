@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useReducer, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useReducer, useRef, forwardRef } from 'react';
 import './App.css';
 import * as Y from 'yjs';
 import { IndexeddbPersistence } from 'y-indexeddb'
@@ -63,14 +63,15 @@ function* allPages(): Generator<[string, Page], any, unknown> {
   }
 }
 
-function ExpandingTextArea(opts: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+function ExpandingTextAreaUnforwarded(opts: React.DetailedHTMLProps<React.TextareaHTMLAttributes<HTMLTextAreaElement>, HTMLTextAreaElement>, ref: any) {
   return (
     <div className="expandingArea">
       <pre><span>{opts.value}</span><br/></pre>
-      <textarea {...opts}></textarea>
+      <textarea {...opts} ref={ref}></textarea>
     </div>
   )
 }
+const ExpandingTextArea = forwardRef(ExpandingTextAreaUnforwarded)
 
 // http://isthe.com/chongo/tech/comp/fnv/
 // FNV1a:
@@ -153,11 +154,21 @@ function Page({title}: {title: string}) {
       }
     }
   }, [selected, editing, data.length])
+  const textarea = useRef<HTMLTextAreaElement>(null)
 
   function onClickBlock(e: React.MouseEvent<HTMLDivElement>, i: number) {
     if (!(e.target instanceof HTMLElement && e.target.nodeName === 'A')) {
       setSelected(i)
       setEditing(true)
+      const { target } = e
+      if (target && target instanceof Element) {
+        if (target.hasAttribute('x-pos')) {
+          const off = +(target.getAttribute('x-pos') || 0) + (window.getSelection()?.anchorOffset || 0)
+          requestAnimationFrame(() => {
+            textarea.current?.setSelectionRange(off, off)
+          })
+        }
+      }
     }
   }
 
@@ -170,6 +181,7 @@ function Page({title}: {title: string}) {
         <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(0, 3) ?? ''}</a></div>
         {editing && selected === i
         ? <ExpandingTextArea
+            ref={textarea}
             value={text.toString()}
             autoFocus
             onBlur={() => setEditing(false)}
