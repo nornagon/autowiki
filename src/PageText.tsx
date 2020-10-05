@@ -8,7 +8,7 @@ import unified from 'unified';
 import u from 'unist-builder'
 import visit from 'unist-util-visit';
 import wikiLink from 'remark-wiki-link';
-import truncateLinks, { remarkTruncateLinks } from 'remark-truncate-links';
+import { remarkTruncateLinks } from 'remark-truncate-links';
 
 function makeCheckboxesEnabled() {
   return function(tree: any) {
