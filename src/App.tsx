@@ -9,6 +9,7 @@ import PageText, { extractLinks } from './PageText';
 type Page = Y.Array<Y.Text>
 
 const rootDoc = new Y.Doc()
+rootDoc.gc = false
 
 const indexeddbProvider = new IndexeddbPersistence('autowiki', rootDoc)
 
