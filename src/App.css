@@ -16,6 +16,10 @@
   border-left: 4px solid lightgray;
 }
 
+.Page img {
+  max-width: 100%;
+}
+
 .Page ul, .Page ol {
   padding-inline-start: 2em;
 }

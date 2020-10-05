@@ -234,7 +234,7 @@ function Page({title}: {title: string}) {
             ref={textarea}
             value={text.toString()}
             autoFocus
-            onKeyDown={(e) => {
+            onKeyDown={e => {
               if (e.key === 'Backspace' && e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0 && selected > 0) {
                 // merge paras
                 changeData(d => {
@@ -258,7 +258,7 @@ function Page({title}: {title: string}) {
                 currentTarget.setSelectionRange(selectionStart + 1, selectionStart + 1)
               }
             }}
-            onChange={(e: any) => {
+            onChange={e => {
               const op = opFromInput(e.target, text?.toString() ?? '')
               if (op && op.inserted === '\n' && op.removed == null && e.target.value.substr(op.start - 1, 2) === '\n\n') {
                 changeData(d => {
@@ -282,11 +282,62 @@ function Page({title}: {title: string}) {
                 })
               }
             }}
+            onPaste={e => {
+              const { currentTarget } = e
+              const { selectionStart, selectionEnd } = currentTarget
+              changeData(d => {
+                const text = d.get(selected)
+                if (selectionEnd !== selectionStart)
+                  text.delete(selectionStart, selectionEnd - selectionStart)
+                text.insert(selectionStart, '![](...)')
+              })
+              const relStart = Y.createRelativePositionFromTypeIndex(data.get(selected), selectionStart + 4)
+              const relEnd = Y.createRelativePositionFromTypeIndex(data.get(selected), selectionStart + 7)
+              for (const item of e.clipboardData.items) {
+                if (item.type.startsWith('image/')) {
+                  e.preventDefault();
+                  (async () => {
+                    const buf = await (item.getAsFile() as any).arrayBuffer()
+                    const digest = await crypto.subtle.digest('SHA-256', buf!)
+                    const digestStr = [...new Uint8Array(digest)].map(x => x.toString(16).padStart(2, '0')).join('')
+                    const blobs = rootDoc.getMap('blobs')
+                    rootDoc.transact(() => {
+                      blobs.set(digestStr, new Y.Map([['data', new Uint8Array(buf)], ['type', item.type]]))
+                      const text = data.get(selected)
+                      const absStart = Y.createAbsolutePositionFromRelativePosition(relStart, rootDoc)
+                      const absEnd = Y.createAbsolutePositionFromRelativePosition(relEnd, rootDoc)
+                      if (absStart && absEnd) {
+                        text.delete(absStart.index, absEnd.index - absStart.index)
+                        text.insert(absStart.index, `blob:${digestStr}`)
+                      }
+                    })
+                  })()
+                  break;
+                }
+              }
+            }}
             />
-        : text.toString()?.trim() ? <PageText text={text.toString()} /> : '\u00a0'}
+        : text.toString()?.trim()
+        ? <PageText
+            text={text.toString()}
+            getBlobURL={getBlobURL} />
+        : '\u00a0'}
       </div>
     })}
   </article>
+}
+
+const blobs = new Map<string, string>()
+function getBlobURL(hash: string): string | undefined {
+  if (!blobs.has(hash)) {
+    const buf = rootDoc.getMap('blobs').get(hash)
+    if (buf && buf.get('data') instanceof Uint8Array) {
+      const data = buf.get('data')
+      const type = buf.get('type').toString()
+      blobs.set(hash, URL.createObjectURL(new Blob([data.buffer], { type })))
+    }
+  }
+  return blobs.get(hash)
 }
 
 function Backlinks({backlinks}: {backlinks: LinkInfo[]}) {
