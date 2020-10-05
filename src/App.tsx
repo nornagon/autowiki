@@ -286,18 +286,18 @@ function Page({title}: {title: string}) {
             onPaste={e => {
               const { currentTarget } = e
               const { selectionStart, selectionEnd } = currentTarget
-              changeData(d => {
-                const text = d.get(selected)
-                if (selectionEnd !== selectionStart)
-                  text.delete(selectionStart, selectionEnd - selectionStart)
-                text.insert(selectionStart, '![](...)')
-              })
-              const relStart = Y.createRelativePositionFromTypeIndex(data.get(selected), selectionStart + 4)
-              const relEnd = Y.createRelativePositionFromTypeIndex(data.get(selected), selectionStart + 7)
               for (const item of e.clipboardData.items) {
                 if (item.type.startsWith('image/')) {
-                  e.preventDefault();
-                  (async () => {
+                  e.preventDefault()
+                  changeData(d => {
+                    const text = d.get(selected)
+                    if (selectionEnd !== selectionStart)
+                      text.delete(selectionStart, selectionEnd - selectionStart)
+                    text.insert(selectionStart, '![](...)')
+                  })
+                  const relStart = Y.createRelativePositionFromTypeIndex(data.get(selected), selectionStart + 4)
+                  const relEnd = Y.createRelativePositionFromTypeIndex(data.get(selected), selectionStart + 7)
+                  ;(async () => {
                     const buf = await (item.getAsFile() as any).arrayBuffer()
                     const digest = await crypto.subtle.digest('SHA-256', buf!)
                     const digestStr = [...new Uint8Array(digest)].map(x => x.toString(16).padStart(2, '0')).join('')
