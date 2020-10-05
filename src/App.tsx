@@ -163,18 +163,25 @@ function Page({title}: {title: string}) {
           setEditing(false)
         }
       }
-      function blur(e: MouseEvent) {
-        if (e.target !== textarea.current) {
-          setEditing(false)
-        }
-      }
-      window.addEventListener('mousedown', blur)
       window.addEventListener('keydown', l)
       return () => {
         window.removeEventListener('keydown', l)
       }
     }
   }, [selected, editing, data.length])
+
+  useEffect(() => {
+    function blur(e: MouseEvent) {
+      if (editing && textarea.current && e.target !== textarea.current) {
+        setEditing(false)
+        setSelected(null)
+      }
+    }
+    window.addEventListener('mousedown', blur)
+    return () => {
+      window.removeEventListener('mousedown', blur)
+    }
+  })
   const textarea = useRef<HTMLTextAreaElement>(null)
 
   function onClickBlock(e: React.MouseEvent<HTMLDivElement>, i: number) {
