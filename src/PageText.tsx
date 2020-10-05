@@ -8,6 +8,7 @@ import unified from 'unified';
 import u from 'unist-builder'
 import visit from 'unist-util-visit';
 import wikiLink from 'remark-wiki-link';
+import truncateLinks, { remarkTruncateLinks } from 'remark-truncate-links';
 
 function makeCheckboxesEnabled() {
   return function(tree: any) {
@@ -36,6 +37,7 @@ function pipeline(getBlobURL?: (hash: string) => string | undefined) {
       pageResolver: (name: string) => [name],
       wikiLinkClassName: 'wikilink',
     })
+    .use(remarkTruncateLinks, { length: 60 })
     .use(remark2rehype, {
       allowDangerousHtml: true,
       handlers: {
