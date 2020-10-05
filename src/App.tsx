@@ -205,19 +205,20 @@ function Page({title}: {title: string}) {
       e.preventDefault()
       return
     }
-    if (!(e.target instanceof Element && (e.target.nodeName === 'A' || e.target.nodeName === 'SUMMARY'))) {
-      setSelected(i)
-      setEditing(true)
-      // anchorNode is the node in which the selection begins. (focusNode is where it ends.)
-      const { anchorNode, anchorOffset } = window.getSelection() ?? {}
-      if (anchorNode) {
-        const nearestPos = findNearestParent(anchorNode, e => e.hasAttribute('x-pos'))
-        if (nearestPos) {
-          const off = +(nearestPos.getAttribute('x-pos')!) + anchorOffset!
-          requestAnimationFrame(() => {
-            textarea.current?.setSelectionRange(off, off)
-          })
-        }
+    if (e.target instanceof Element && (findNearestParent(e.target, n => n.nodeName === 'A') || e.target.nodeName === 'SUMMARY')) {
+      return
+    }
+    setSelected(i)
+    setEditing(true)
+    // anchorNode is the node in which the selection begins. (focusNode is where it ends.)
+    const { anchorNode, anchorOffset } = window.getSelection() ?? {}
+    if (anchorNode) {
+      const nearestPos = findNearestParent(anchorNode, e => e.hasAttribute('x-pos'))
+      if (nearestPos) {
+        const off = +(nearestPos.getAttribute('x-pos')!) + anchorOffset!
+        requestAnimationFrame(() => {
+          textarea.current?.setSelectionRange(off, off)
+        })
       }
     }
   }
