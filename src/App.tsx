@@ -176,13 +176,16 @@ function Page({title}: {title: string}) {
       if (editing && textarea.current && e.target !== textarea.current) {
         setEditing(false)
         setSelected(null)
+      } else if (!editing && !findNearestParent(e.target as Element, e => e.className === 'Page')) {
+        setEditing(false)
+        setSelected(null)
       }
     }
     window.addEventListener('mousedown', blur)
     return () => {
       window.removeEventListener('mousedown', blur)
     }
-  })
+  }, [editing])
   const textarea = useRef<HTMLTextAreaElement>(null)
 
   function onClickBlock(e: React.MouseEvent<HTMLDivElement>, i: number) {
