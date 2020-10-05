@@ -244,15 +244,18 @@ function Page({title}: {title: string}) {
                 })
                 setSelected(selected - 1)
               }
+              const { currentTarget } = e
+              const { selectionStart, selectionEnd } = currentTarget
               if (e.key === '[') {
-                const { currentTarget } = e
-                const { selectionStart, selectionEnd } = currentTarget
                 changeData(d => {
                   d.get(selected).insert(selectionEnd, ']')
                   d.get(selected).insert(selectionStart, '[')
                 })
                 requestAnimationFrame(() => currentTarget.setSelectionRange(selectionStart + 1, selectionEnd + 1))
                 e.preventDefault()
+              } else if (e.key === ']' && selectionStart === selectionEnd && currentTarget.value[selectionStart] === ']') {
+                e.preventDefault()
+                currentTarget.setSelectionRange(selectionStart + 1, selectionStart + 1)
               }
             }}
             onChange={(e: any) => {
