@@ -307,7 +307,7 @@ function Page({title}: {title: string}) {
                     const digestStr = [...new Uint8Array(digest)].map(x => x.toString(16).padStart(2, '0')).join('')
                     const blobs = rootDoc.getMap('blobs')
                     rootDoc.transact(() => {
-                      blobs.set(digestStr, new Y.Map([['data', new Uint8Array(buf)], ['type', item.type]]))
+                      blobs.set(digestStr, {data: new Uint8Array(buf), type: item.type})
                       const text = data.get(selected)
                       const absStart = Y.createAbsolutePositionFromRelativePosition(relStart, rootDoc)
                       const absEnd = Y.createAbsolutePositionFromRelativePosition(relEnd, rootDoc)
@@ -335,10 +335,10 @@ function Page({title}: {title: string}) {
 const blobs = new Map<string, string>()
 function getBlobURL(hash: string): string | undefined {
   if (!blobs.has(hash)) {
-    const buf = rootDoc.getMap('blobs').get(hash)
-    if (buf && buf.get('data') instanceof Uint8Array) {
-      const data = buf.get('data')
-      const type = buf.get('type').toString()
+    const blob = rootDoc.getMap('blobs').get(hash)
+    if (blob && blob.data instanceof Uint8Array) {
+      const data = blob.data
+      const type = blob.type
       blobs.set(hash, URL.createObjectURL(new Blob([data.buffer], { type })))
     }
   }
