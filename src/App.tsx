@@ -332,6 +332,33 @@ function Page({title}: {title: string}) {
   </article>
 }
 
+function isValidMetaPage(x: any): x is keyof typeof MetaPages {
+  return Object.prototype.hasOwnProperty.call(MetaPages, x)
+}
+
+function MetaPage({page, ...rest}: {page: string}) {
+  const [, meta] = /^meta:(.+)$/.exec(page) ?? []
+  if (isValidMetaPage(meta)) {
+    const Page = MetaPages[meta]
+    return <Page {...rest} />
+  } else {
+    return <>Unknown 'meta' page: {meta}</>
+  }
+}
+
+const MetaPages = {
+  all: () => {
+    return <div className="Page">
+      <h1>All Pages</h1>
+      <ul>
+        {[...allPages()].filter(x => x[1].toArray().some(x => x.length > 0)).sort((a, b) => a[0].localeCompare(b[0])).map(([title, page]) => {
+          return <li><a href={`/${title}`} className="wikilink">{title}</a></li>
+        })}
+      </ul>
+    </div>
+  }
+}
+
 const blobs = new Map<string, string>()
 function getBlobURL(hash: string): string | undefined {
   if (!blobs.has(hash)) {
@@ -446,8 +473,10 @@ function App() {
 
   return <>
     <Replicate doc={rootDoc} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />
-    <Page key={pageTitle} title={pageTitle} />
-    <Backlinks backlinks={backlinks} />
+    {pageTitle.startsWith('meta:') ? <MetaPage page={pageTitle} /> : <>
+      <Page key={pageTitle} title={pageTitle} />
+      <Backlinks backlinks={backlinks} />
+    </>}
     <ReplicationStateIndicator state={peerState} onClick={() => {
       const newPeers = (prompt("Peers?", peers.join(','))?.split(',') ?? []).map(x => x.trim()).filter(x => x)
       setPeers(newPeers)
