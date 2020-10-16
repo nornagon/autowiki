@@ -291,7 +291,8 @@ function Page({title}: {title: string}) {
               const { currentTarget } = e
               const { selectionStart, selectionEnd } = currentTarget
               for (const item of e.clipboardData.items) {
-                if (item.type.startsWith('image/')) {
+                const mimeType = item.type
+                if (mimeType.startsWith('image/')) {
                   e.preventDefault()
                   changeData(d => {
                     const text = d.get(selected)
@@ -307,7 +308,9 @@ function Page({title}: {title: string}) {
                     const digestStr = [...new Uint8Array(digest)].map(x => x.toString(16).padStart(2, '0')).join('')
                     const blobs = rootDoc.getMap('blobs')
                     rootDoc.transact(() => {
-                      blobs.set(digestStr, {data: new Uint8Array(buf), type: item.type})
+                      if (!blobs.has(digestStr)) {
+                        blobs.set(digestStr, {data: new Uint8Array(buf), type: mimeType})
+                      }
                       const text = data.get(selected)
                       const absStart = Y.createAbsolutePositionFromRelativePosition(relStart, rootDoc)
                       const absEnd = Y.createAbsolutePositionFromRelativePosition(relEnd, rootDoc)
