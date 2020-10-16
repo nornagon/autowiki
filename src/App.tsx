@@ -5,11 +5,15 @@ import { IndexeddbPersistence } from 'y-indexeddb'
 import { opFromInput } from './textarea-op';
 import { Replicate, ReplicationState } from './Replicate';
 import PageText, { extractLinks } from './PageText';
+import * as b64 from 'base64-arraybuffer';
 
 type Page = Y.Array<Y.Text>
 
 const rootDoc = new Y.Doc()
 rootDoc.gc = false
+;(window as any).rootDoc = rootDoc
+
+const EXPORT_VERSION = 1
 
 const indexeddbProvider = new IndexeddbPersistence('autowiki', rootDoc)
 
@@ -370,19 +374,120 @@ const MetaPages = {
       </ul>
     </div>
   },
+  export: () => {
+    function doImport() {
+      const input = document.createElement('input')
+      input.setAttribute('type', 'file')
+      input.setAttribute('hidden', 'hidden')
+      input.onchange = (e) => {
+        if (input.files?.length) {
+          (input.files[0] as any).arrayBuffer().then((buf: ArrayBuffer) => {
+            const bytes = new Uint8Array(buf)
+            if (bytes[0] !== 0x7b /* { */) {
+              alert("That doesn't look like a valid Autowiki export.")
+              return
+            }
+            const str = (new TextDecoder()).decode(buf)
+            let json: any = null
+            try {
+              json = JSON.parse(str)
+            } catch (e) {
+              alert("That doesn't look like a valid Autowiki export.")
+              return
+            }
+            if (!json._autowiki) {
+              alert("That doesn't look like a valid Autowiki export.")
+              return
+            }
+            if (json._autowiki.version > EXPORT_VERSION) {
+              alert("That file is too new for this version of Autowiki :(")
+              return
+            }
+            const existingPages = new Set(rootDoc.getMap('wiki').keys())
+            const added = Object.keys(json.wiki).filter(k => !existingPages.has(k))
+            const replaced = Object.keys(json.wiki).filter(k => existingPages.has(k))
+            const blobs = rootDoc.getMap('blobs')
+            const newBlobs = Object.keys(json.blobs).filter(k => !blobs.has(k))
+            console.log(added, replaced, newBlobs)
+            const warn = [
+              {name: 'new page', values: added},
+              {name: 'replaced page', values: replaced},
+              {name: 'new blob', values: newBlobs}
+            ]
+            const warnStr = `This import contains ${warn.map(({name, values}) => `${values.length} ${name}${values.length === 1 ? '' : 's'}`).join(', ')}. Go ahead?`
+            if (!window.confirm(warnStr)) {
+              alert('Import cancelled.')
+              return
+            }
+            rootDoc.transact(() => {
+              const wiki: Y.Map<Y.Array<Y.Text>> = rootDoc.getMap('wiki')
+              for (const [page, data] of Object.entries<string[]>(json.wiki)) {
+                const existingPage = wiki.get(page)
+                if (existingPage?.length === data.length && existingPage?.toArray().every((x, i) => x.toString() === data[i]))
+                  continue
+                const arr = new Y.Array<Y.Text>()
+                arr.push(data.map(str => new Y.Text(str)))
+                wiki.set(page, arr)
+              }
+              type BlobData = {data: Uint8Array, type: string}
+              const blobs: Y.Map<BlobData> = rootDoc.getMap('blobs')
+              for (const [hash, blob] of Object.entries<any>(json.blobs)) {
+                if (blobs.has(hash))
+                  continue
+                blobs.set(hash, {
+                  ...blob,
+                  data: new Uint8Array(b64.decode(blob.data))
+                })
+              }
+            })
+            console.log(rootDoc.toJSON())
+            alert('Import complete.')
+          })
+        }
+      }
+      input.click()
+    }
+    function doExport() {
+      const a = document.createElement('a')
+      a.setAttribute('download', `autowiki-export-${(Date.now()/1000)|0}.json`)
+      const exportObj = {
+        _autowiki: { version: EXPORT_VERSION },
+        wiki: rootDoc.getMap('wiki').toJSON(),
+        blobs: Object.fromEntries([
+          ...Object.entries(rootDoc.getMap('blobs').toJSON())
+        ].map(([k, v]: [string, any]) => [k, {...v, data: b64.encode(v.data)}])),
+      }
+      const exportData = JSON.stringify(exportObj)
+      const blobURL = URL.createObjectURL(new Blob([exportData], {type: 'application/json'}))
+      a.setAttribute('href', blobURL)
+      a.click()
+      setTimeout(() => {
+        URL.revokeObjectURL(blobURL)
+      }, 10000)
+    }
+    return <div className="Page">
+      <h1>Export/Import</h1>
+      <p>
+        <button onClick={doExport}>export</button>
+      </p>
+      <p>
+        <button onClick={doImport}>import</button>
+      </p>
+    </div>
+  }
 }
 
-const blobs = new Map<string, string>()
+const blobURLs = new Map<string, string>()
 function getBlobURL(hash: string): string | undefined {
-  if (!blobs.has(hash)) {
+  if (!blobURLs.has(hash)) {
     const blob = rootDoc.getMap('blobs').get(hash)
     if (blob && blob.data instanceof Uint8Array) {
       const data = blob.data
       const type = blob.type
-      blobs.set(hash, URL.createObjectURL(new Blob([data], { type })))
+      blobURLs.set(hash, URL.createObjectURL(new Blob([data], { type })))
     }
   }
-  return blobs.get(hash)
+  return blobURLs.get(hash)
 }
 
 function Backlinks({backlinks}: {backlinks: LinkInfo[]}) {
