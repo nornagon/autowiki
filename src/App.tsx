@@ -366,7 +366,7 @@ function getBlobURL(hash: string): string | undefined {
     if (blob && blob.data instanceof Uint8Array) {
       const data = blob.data
       const type = blob.type
-      blobs.set(hash, URL.createObjectURL(new Blob([data.buffer], { type })))
+      blobs.set(hash, URL.createObjectURL(new Blob([data], { type })))
     }
   }
   return blobs.get(hash)
