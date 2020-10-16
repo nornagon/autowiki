@@ -244,17 +244,21 @@ function Page({title}: {title: string}) {
             value={text.toString()}
             autoFocus
             onKeyDown={e => {
-              if (e.key === 'Backspace' && e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0 && selected > 0) {
+              const { currentTarget } = e
+              const { selectionStart, selectionEnd } = currentTarget
+              if (e.key === 'Backspace' && selectionStart === 0 && selectionEnd === 0 && selected > 0) {
                 // merge paras
                 changeData(d => {
                   const prev = d.get(selected - 1)
+                  const prevLength = prev.length
                   prev.insert(prev.length, d.get(selected).toString())
                   d.delete(selected, 1)
+                  requestAnimationFrame(() => {
+                    textarea.current?.setSelectionRange(prevLength, prevLength)
+                  })
                 })
                 setSelected(selected - 1)
               }
-              const { currentTarget } = e
-              const { selectionStart, selectionEnd } = currentTarget
               if (e.key === '[') {
                 changeData(d => {
                   d.get(selected).insert(selectionEnd, ']')
