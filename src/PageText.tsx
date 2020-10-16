@@ -67,8 +67,8 @@ function pipeline(getBlobURL?: (hash: string) => string | undefined) {
       }
     })
     .use(makeCheckboxesEnabled)
-    .use(imageBlobReferences, {getBlobURL})
     .use(raw)
+    .use(imageBlobReferences, {getBlobURL})
     .use(stringify)
 }
 
