@@ -359,7 +359,17 @@ const MetaPages = {
         })}
       </ul>
     </div>
-  }
+  },
+  blobs: () => {
+    return <div className="Page">
+      <h1>Blobs</h1>
+      <ul>
+        {[...rootDoc.getMap("blobs").keys()].map(hash => {
+          return <li><img src={getBlobURL(hash)} style={{width: 256, height: 256, objectFit: 'cover'}} alt={hash}/></li>
+        })}
+      </ul>
+    </div>
+  },
 }
 
 const blobs = new Map<string, string>()
