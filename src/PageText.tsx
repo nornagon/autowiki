@@ -22,7 +22,6 @@ function imageBlobReferences({getBlobURL}: {getBlobURL?: (hash: string) => strin
   return function(tree: any) {
     if (getBlobURL) {
       visit(tree, ((e: any) => e.type === 'element' && e.tagName === 'img' && e.properties.src.startsWith('blob:')) as any, (node: any) => {
-        console.log(node.properties.src.split(':')[1])
         node.properties.src = getBlobURL(node.properties.src.split(':')[1])
       })
     }
