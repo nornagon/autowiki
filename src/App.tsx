@@ -1,21 +1,83 @@
-import React, { useEffect, useState, useMemo, useReducer, useRef, forwardRef } from 'react';
+/// <reference path="../node_modules/automerge/@types/automerge/index.d.ts" />
+
+import React, { useEffect, useState, useMemo, useReducer, useRef, forwardRef, useCallback } from 'react';
 import './App.css';
-import * as Y from 'yjs';
-import { IndexeddbPersistence } from 'y-indexeddb'
+import Automerge from 'automerge';
 import { opFromInput } from './textarea-op';
 import { Replicate, ReplicationState } from './Replicate';
 import PageText, { extractLinks } from './PageText';
 import * as b64 from 'base64-arraybuffer';
-
-type Page = Y.Array<Y.Text>
-
-const rootDoc = new Y.Doc()
-rootDoc.gc = false
-;(window as any).rootDoc = rootDoc
+import { debounce } from 'debounce';
 
 const EXPORT_VERSION = 1
 
-const indexeddbProvider = new IndexeddbPersistence('autowiki', rootDoc)
+type Block = {
+  text: Automerge.Text
+}
+
+type Page = {
+  blocks: Automerge.List<Block>
+}
+
+type Wiki = {
+  pages: Record<string, Page>
+}
+
+let changesPending = false
+const save = debounce(function<T>(docId: string, doc: Automerge.Doc<T>)  {
+  idbSetItem(`automerge:${docId}`, Automerge.save(doc))
+  changesPending = false
+}, 1000)
+window.onbeforeunload = () => changesPending ? true : undefined
+
+const openDb = (name: string, upgrade: (db: IDBDatabase) => void): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(name)
+    req.onupgradeneeded = () => upgrade(req.result)
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+const getDb = (() => {
+  const dbs = new Map<string, Promise<IDBDatabase>>()
+  return (name: string, initialize: (db: IDBDatabase) => void) => {
+    if (!dbs.has(name)) {
+      dbs.set(name, openDb(name, initialize))
+    }
+    return dbs.get(name)!
+  }
+})()
+
+const getSimpleDb = (name: string) => {
+  return getDb(name, (db) => {
+    db.createObjectStore("data")
+  })
+}
+
+const idbSetItem = async (key: string, value: any) => {
+  const db = await getSimpleDb("lsish")
+  const tx = db.transaction(["data"], "readwrite")
+  const os = tx.objectStore("data")
+  os.put(value, key)
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = resolve
+    tx.onerror = reject
+  })
+}
+
+const idbGetItem = async (key: string): Promise<any> => {
+  const db = await getSimpleDb("lsish")
+  const tx = db.transaction(["data"], "readonly")
+  const os = tx.objectStore("data")
+  const req = os.get(key)
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = reject
+  })
+}
+
+//const indexeddbProvider = new IndexeddbPersistence('autowiki', rootDoc)
 
 const useHistory = (): [string, (s: string) => void] => {
   const [pathname, setPathname] = useState(window.location.pathname)
@@ -35,38 +97,46 @@ const useHistory = (): [string, (s: string) => void] => {
   }, [])
   return [pathname, navigate]
 }
-
-function useStorage<T>(key: string, initial: () => T): [T, (f: (t: T) => void) => void] {
-  const map = rootDoc.getMap('wiki')
-  if (!map.has(key)) {
-    const v = initial()
-    rootDoc.transact(() => {
-      map.set(key, v)
-    })
-  }
-  function change(f: (t: T) => void) {
-    rootDoc.transact(() => {
-      f(map.get(key))
-    })
-  }
-  const [, forceUpdate] = useReducer(x => x + 1, 0);
+function useDocument<T>(id: string, initial: () => Automerge.Doc<T>): [Automerge.FreezeObject<T>, (fn: Automerge.ChangeFn<T>) => void] {
+  const [doc, setDoc] = useState(initial)
   useEffect(() => {
-    const fn = (event: any, txn: Y.Transaction) => {
-      forceUpdate()
-    }
-    map.observeDeep(fn)
-    return () => {
-      map.unobserveDeep(fn)
-    }
-  })
-  return [map.get(key), change]
+    idbGetItem("automerge:wiki").then((data) => {
+      if (data)
+        setDoc(Automerge.load(data))
+    })
+  }, [])
+  const change = useCallback((fn: Automerge.ChangeFn<T>) => {
+    const newDoc = Automerge.change(doc, fn)
+    setDoc(newDoc)
+    save(id, newDoc)
+    //docSet.setDoc(id, Automerge.change(doc, fn))
+  }, [id, doc])
+  return [doc, change]
 }
 
+function usePage(title: string): [Automerge.FreezeObject<Page>, (fn: Automerge.ChangeFn<Page>) => void] {
+  const [doc, change] = useDocument<Wiki>('wiki', () => Automerge.from({ pages: {} }))
+  const { pages } = doc
+  const page = pages[title] ?? {blocks: [{ text: new Automerge.Text() }]}
+  const changePage = (f: Automerge.ChangeFn<Page>) => {
+    change(doc => {
+      if (!Object.prototype.hasOwnProperty.call(doc.pages, title)) {
+        doc.pages[title] = { blocks: [{text: new Automerge.Text()}] }
+      }
+      f(doc.pages[title])
+    })
+  }
+  return [page, changePage]
+}
+
+
 function* allPages(): Generator<[string, Page], any, unknown> {
+  /*
   const doc = rootDoc.getMap('wiki')
   for (const k of doc.keys()) {
     yield [k, doc.get(k)]
   }
+  */
 }
 
 function ExpandingTextAreaUnforwarded(opts: React.DetailedHTMLProps<React.TextareaHTMLAttributes<HTMLTextAreaElement>, HTMLTextAreaElement>, ref: any) {
@@ -103,9 +173,11 @@ function fnvHashInt32s(int32s: number[]): number {
   return fnvHash(Uint32Array.from(int32s))
 }
 
+/*
 function mixedId(id: Y.ID): number {
   return id ? fnvHashInt32s([id.client, id.clock]) : 0
 }
+*/
 
 function findNearestParent(node: Node, fn: (n: Element) => boolean): Element | null {
   let e: Element | null = node instanceof Element ? node : node.parentElement
@@ -118,11 +190,7 @@ function findNearestParent(node: Node, fn: (n: Element) => boolean): Element | n
 function Page({title}: {title: string}) {
   const [selected, setSelected] = useState(null as number | null)
   const [editing, setEditing] = useState(false)
-  const [data, changeData] = useStorage<Y.Array<Y.Text>>(title, () => {
-    const r = new Y.Array<Y.Text>()
-    r.push([new Y.Text()])
-    return r
-  })
+  const [data, changeData] = usePage(title)
   const selectedEl = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -136,11 +204,11 @@ function Page({title}: {title: string}) {
       const l = (e: KeyboardEvent) => {
         if (e.key === 'ArrowUp') {
           if (selected === 0) setSelected(null)
-          else if (selected === null) setSelected(data.length - 1)
+          else if (selected === null) setSelected(data.blocks.length - 1)
           else setSelected(selected - 1)
           e.preventDefault()
         } else if (e.key === 'ArrowDown') {
-          if (selected === data.length - 1) setSelected(null)
+          if (selected === data.blocks.length - 1) setSelected(null)
           else if (selected === null) setSelected(0)
           else setSelected(selected + 1)
           e.preventDefault()
@@ -173,7 +241,7 @@ function Page({title}: {title: string}) {
         window.removeEventListener('keydown', l)
       }
     }
-  }, [selected, editing, data.length])
+  }, [selected, editing, data.blocks.length])
 
   useEffect(() => {
     function blur(e: MouseEvent) {
@@ -198,15 +266,15 @@ function Page({title}: {title: string}) {
       if (nextElementSibling && nextElementSibling.hasAttribute('x-pos')) {
         changeData(d => {
           // TODO: this is a hack, we should encode the source position of the checkbox during parsing
-          const text = d.get(i)
+          const block = d.blocks[i]
           const pos = +nextElementSibling.getAttribute('x-pos')! - 3
-          const str = text.toString()
+          const str = block.text.toString()
           if (str[pos] === ' ') {
-            text.delete(pos, 1)
-            text.insert(pos, 'x')
+            block.text.deleteAt!(pos, 1)
+            block.text.insertAt!(pos, 'x')
           } else if (str[pos] === 'x') {
-            text.delete(pos, 1)
-            text.insert(pos, ' ')
+            block.text.deleteAt!(pos, 1)
+            block.text.insertAt!(pos, ' ')
           }
         })
       }
@@ -233,15 +301,15 @@ function Page({title}: {title: string}) {
 
   return <article className="Page">
     <h1>{title}</h1>
-    {data.toArray().map((text, i) => {
-      const idNum = mixedId(text._item?.lastId ?? {client: 0, clock: 0})
-      const id = idNum.toString(16).padStart(8, '0')
+    {data.blocks.map((block, i) => {
+      //const idNum = mixedId(text._item?.lastId ?? {client: 0, clock: 0})
+      const id = '' //idNum.toString(16).padStart(8, '0')
       return <div className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null} onClick={e => onClickBlock(e, i)}>
         <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(0, 3) ?? ''}</a></div>
         {editing && selected === i
         ? <ExpandingTextArea
             ref={textarea}
-            value={text.toString()}
+            value={block.text.toString()}
             autoFocus
             onKeyDown={e => {
               const { currentTarget } = e
@@ -249,10 +317,10 @@ function Page({title}: {title: string}) {
               if (e.key === 'Backspace' && selectionStart === 0 && selectionEnd === 0 && selected > 0) {
                 // merge paras
                 changeData(d => {
-                  const prev = d.get(selected - 1)
-                  const prevLength = prev.length
-                  prev.insert(prev.length, d.get(selected).toString())
-                  d.delete(selected, 1)
+                  const prev = d.blocks[selected - 1]
+                  const prevLength = prev.text.length
+                  prev.text.insertAt!(prev.text.length, d.blocks[selected].toString())
+                  d.blocks.deleteAt!(selected, 1)
                   requestAnimationFrame(() => {
                     textarea.current?.setSelectionRange(prevLength, prevLength)
                   })
@@ -261,8 +329,8 @@ function Page({title}: {title: string}) {
               }
               if (e.key === '[') {
                 changeData(d => {
-                  d.get(selected).insert(selectionEnd, ']')
-                  d.get(selected).insert(selectionStart, '[')
+                  d.blocks[selected].text.insertAt!(selectionEnd, ']')
+                  d.blocks[selected].text.insertAt!(selectionStart, '[')
                 })
                 requestAnimationFrame(() => currentTarget.setSelectionRange(selectionStart + 1, selectionEnd + 1))
                 e.preventDefault()
@@ -272,13 +340,13 @@ function Page({title}: {title: string}) {
               }
             }}
             onChange={e => {
-              const op = opFromInput(e.target, text?.toString() ?? '')
+              const op = opFromInput(e.target, block.text?.toString() ?? '')
               if (op && op.inserted === '\n' && op.removed == null && e.target.value.substr(op.start - 1, 2) === '\n\n') {
                 changeData(d => {
                   //const str = d[selected].toString().substr(op.start);
-                  const str = d.get(selected).toString().substr(op.start, d.get(selected).length - op.start + 1)
-                  d.get(selected).delete(op.start - 1, d.get(selected).length - op.start + 1)
-                  d.insert(selected + 1, [new Y.Text(str)])
+                  const str = d.blocks[selected].text.toString().substr(op.start, d.blocks[selected].text.length - op.start + 1)
+                  d.blocks[selected].text.deleteAt!(op.start - 1, d.blocks[selected].text.length - op.start + 1)
+                  d.blocks.insertAt!(selected + 1, {text: new Automerge.Text(str)})
                 })
                 setSelected(selected + 1)
                 return
@@ -287,15 +355,16 @@ function Page({title}: {title: string}) {
                 changeData(d => {
                   const {start, removed, inserted} = op
                   if (removed != null) {
-                    d.get(selected).delete(start, removed.length)
+                    d.blocks[selected].text.deleteAt!(start, removed.length)
                   }
                   if (inserted != null) {
-                    d.get(selected).insert(start, inserted)
+                    d.blocks[selected].text.insertAt!(start, inserted)
                   }
                 })
               }
             }}
             onPaste={e => {
+              /*
               const { currentTarget } = e
               const { selectionStart, selectionEnd } = currentTarget
               for (const item of e.clipboardData.items) {
@@ -303,10 +372,10 @@ function Page({title}: {title: string}) {
                 if (mimeType.startsWith('image/')) {
                   e.preventDefault()
                   changeData(d => {
-                    const text = d.get(selected)
+                    const { text } = d.blocks[selected]
                     if (selectionEnd !== selectionStart)
-                      text.delete(selectionStart, selectionEnd - selectionStart)
-                    text.insert(selectionStart, '![](...)')
+                      text.deleteAt!(selectionStart, selectionEnd - selectionStart)
+                    text.insertAt!(selectionStart, '![](...)')
                   })
                   const relStart = Y.createRelativePositionFromTypeIndex(data.get(selected), selectionStart + 4)
                   const relEnd = Y.createRelativePositionFromTypeIndex(data.get(selected), selectionStart + 7)
@@ -331,11 +400,12 @@ function Page({title}: {title: string}) {
                   break;
                 }
               }
+              */
             }}
             />
-        : text.toString()?.trim()
+        : block.text.toString()?.trim()
         ? <PageText
-            text={text.toString()}
+            text={block.text.toString()}
             getBlobURL={getBlobURL} />
         : '\u00a0'}
       </div>
@@ -362,12 +432,13 @@ const MetaPages = {
     return <div className="Page">
       <h1>All Pages</h1>
       <ul>
-        {[...allPages()].filter(x => x[1].toArray().some(x => x.length > 0)).sort((a, b) => a[0].localeCompare(b[0])).map(([title, page]) => {
+        {[...allPages()].filter(x => x[1].blocks.some(x => x.text.length > 0)).sort((a, b) => a[0].localeCompare(b[0])).map(([title, page]) => {
           return <li><a href={`/${title}`} className="wikilink">{title}</a></li>
         })}
       </ul>
     </div>
   },
+  /*
   blobs: () => {
     return <div className="Page">
       <h1>Blobs</h1>
@@ -378,7 +449,10 @@ const MetaPages = {
       </ul>
     </div>
   },
+  */
   export: () => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const [doc, change] = useDocument<Wiki>('wiki', () => Automerge.from({ pages: {} }))
     function doImport() {
       const input = document.createElement('input')
       input.setAttribute('type', 'file')
@@ -407,44 +481,52 @@ const MetaPages = {
               alert("That file is too new for this version of Autowiki :(")
               return
             }
-            const existingPages = new Set(rootDoc.getMap('wiki').keys())
+            const existingPages = new Set(Object.keys(doc.pages))
             const added = Object.keys(json.wiki).filter(k => !existingPages.has(k))
             const replaced = Object.keys(json.wiki).filter(k => existingPages.has(k))
-            const blobs = rootDoc.getMap('blobs')
-            const newBlobs = Object.keys(json.blobs).filter(k => !blobs.has(k))
-            console.log(added, replaced, newBlobs)
+            //const blobs = rootDoc.getMap('blobs')
+            //const newBlobs = Object.keys(json.blobs).filter(k => !blobs.has(k))
+            //console.log(added, replaced, newBlobs)
             const warn = [
               {name: 'new page', values: added},
               {name: 'replaced page', values: replaced},
-              {name: 'new blob', values: newBlobs}
+              //{name: 'new blob', values: newBlobs}
             ]
             const warnStr = `This import contains ${warn.map(({name, values}) => `${values.length} ${name}${values.length === 1 ? '' : 's'}`).join(', ')}. Go ahead?`
             if (!window.confirm(warnStr)) {
               alert('Import cancelled.')
               return
             }
-            rootDoc.transact(() => {
-              const wiki: Y.Map<Y.Array<Y.Text>> = rootDoc.getMap('wiki')
+            change(doc => {
               for (const [page, data] of Object.entries<string[]>(json.wiki)) {
-                const existingPage = wiki.get(page)
-                if (existingPage?.length === data.length && existingPage?.toArray().every((x, i) => x.toString() === data[i]))
+                const existingPage = doc.pages[page]
+                if (existingPage?.blocks.length === data.length && existingPage?.blocks.every((x, i) => x.toString() === data[i]))
                   continue
-                const arr = new Y.Array<Y.Text>()
-                arr.push(data.map(str => new Y.Text(str)))
-                wiki.set(page, arr)
-              }
-              type BlobData = {data: Uint8Array, type: string}
-              const blobs: Y.Map<BlobData> = rootDoc.getMap('blobs')
-              for (const [hash, blob] of Object.entries<any>(json.blobs)) {
-                if (blobs.has(hash))
-                  continue
-                blobs.set(hash, {
-                  ...blob,
-                  data: new Uint8Array(b64.decode(blob.data))
-                })
+                doc.pages[page] = { blocks: data.map(str => ({ text: new Automerge.Text(str) })) }
               }
             })
-            console.log(rootDoc.toJSON())
+            // rootDoc.transact(() => {
+            //   const wiki: Y.Map<Y.Array<Y.Text>> = rootDoc.getMap('wiki')
+            //   for (const [page, data] of Object.entries<string[]>(json.wiki)) {
+            //     const existingPage = wiki.get(page)
+            //     if (existingPage?.length === data.length && existingPage?.toArray().every((x, i) => x.toString() === data[i]))
+            //       continue
+            //     const arr = new Y.Array<Y.Text>()
+            //     arr.push(data.map(str => new Y.Text(str)))
+            //     wiki.set(page, arr)
+            //   }
+            //   type BlobData = {data: Uint8Array, type: string}
+            //   const blobs: Y.Map<BlobData> = rootDoc.getMap('blobs')
+            //   for (const [hash, blob] of Object.entries<any>(json.blobs)) {
+            //     if (blobs.has(hash))
+            //       continue
+            //     blobs.set(hash, {
+            //       ...blob,
+            //       data: new Uint8Array(b64.decode(blob.data))
+            //     })
+            //   }
+            // })
+            //console.log(rootDoc.toJSON())
             alert('Import complete.')
           })
         }
@@ -456,10 +538,12 @@ const MetaPages = {
       a.setAttribute('download', `autowiki-export-${(Date.now()/1000)|0}.json`)
       const exportObj = {
         _autowiki: { version: EXPORT_VERSION },
-        wiki: rootDoc.getMap('wiki').toJSON(),
+        wiki: doc,
+        /*
         blobs: Object.fromEntries([
           ...Object.entries(rootDoc.getMap('blobs').toJSON())
         ].map(([k, v]: [string, any]) => [k, {...v, data: b64.encode(v.data)}])),
+        */
       }
       const exportData = JSON.stringify(exportObj)
       const blobURL = URL.createObjectURL(new Blob([exportData], {type: 'application/json'}))
@@ -483,6 +567,7 @@ const MetaPages = {
 
 const blobURLs = new Map<string, string>()
 function getBlobURL(hash: string): string | undefined {
+/*
   if (!blobURLs.has(hash)) {
     const blob = rootDoc.getMap('blobs').get(hash)
     if (blob && blob.data instanceof Uint8Array) {
@@ -492,6 +577,8 @@ function getBlobURL(hash: string): string | undefined {
     }
   }
   return blobURLs.get(hash)
+  */
+  return undefined
 }
 
 function Backlinks({backlinks}: {backlinks: LinkInfo[]}) {
@@ -524,7 +611,7 @@ function getBlocksLinkingTo(pageTitle: string): LinkInfo[] {
   const links: LinkInfo[] = []
   for (const [k, v] of allPages()) {
     if (k === pageTitle) continue
-    for (const block of v) {
+    for (const block of v.blocks) {
       for (const link of extractLinks(block.toString())) {
         if (link.href === pageTitle)
           links.push({page: k, context: block.toString()})
@@ -558,12 +645,14 @@ function ReplicationStateIndicator({state, onClick}: {state: Record<string, Repl
 
 function App() {
   const [synced, setSynced] = useState(false)
+  /*
   useEffect(() => {
     indexeddbProvider.whenSynced.then(() => {
       console.log('loaded data from indexed db')
       setSynced(true)
     })
   }, [])
+  */
   const [pathname, navigate] = useHistory()
   const [peers, setPeers] = useState<string[]>(() => JSON.parse(localStorage.getItem('peers') ?? '[]'))
   const [peerState, setPeerState] = useState<Record<string, ReplicationState>>({})
@@ -591,10 +680,10 @@ function App() {
 
   // TODO: this also depends on the other docs, but for now let's only recalculate it when you navigate.
   const backlinks = useMemo(() => getBlocksLinkingTo(pageTitle), [pageTitle, synced])
-  if (!synced) return <>Loading...</>
+  //if (!synced) return <>Loading...</>
 
   return <>
-    <Replicate doc={rootDoc} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />
+    {/*<Replicate doc={rootDoc} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />*/}
     {pageTitle.startsWith('meta:') ? <MetaPage page={pageTitle} /> : <>
       <Page key={pageTitle} title={pageTitle} />
       <Backlinks backlinks={backlinks} />

@@ -2368,15 +2368,15 @@ autolinker@^3.11.1:
   dependencies:
     tslib "^1.9.3"
 
-automerge@^0.13.0:
-  version "0.13.0"
-  resolved "https://registry.yarnpkg.com/automerge/-/automerge-0.13.0.tgz#cf9852a30255d445ac7f15576c53f78624f6560b"
-  integrity sha512-yJZmKeKgyPJt6xgZ0MpV2GYT/U4cDpWxK4xCrGIXGSuiboTI+eDSMJSfBWtNiUV7QRHaVeChho5KveYjAj91cg==
+automerge@automerge/automerge#performance:
+  version "0.14.0"
+  resolved "https://codeload.github.com/automerge/automerge/tar.gz/a8d8b602ec273aaa48679e251de8829f3ce5ad41"
   dependencies:
+    fast-sha256 "^1.3.0"
     immutable "^3.8.2"
     transit-immutable-js "^0.7.0"
     transit-js "^0.8.861"
-    uuid "3.3.2"
+    uuid "^3.4.0"
 
 autoprefixer@^9.6.1:
   version "9.8.6"
@@ -4739,6 +4739,11 @@ fast-levenshtein@~2.0.6:
   version "2.0.6"
   resolved "https://registry.yarnpkg.com/fast-levenshtein/-/fast-levenshtein-2.0.6.tgz#3d8a5c66883a16a30ca8643e851f19baa7797917"
   integrity sha1-PYpcZog6FqMMqGQ+hR8Zuqd5eRc=
+
+fast-sha256@^1.3.0:
+  version "1.3.0"
+  resolved "https://registry.yarnpkg.com/fast-sha256/-/fast-sha256-1.3.0.tgz#7916ba2054eeb255982608cccd0f6660c79b7ae6"
+  integrity sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ==
 
 faye-websocket@^0.10.0:
   version "0.10.0"
@@ -11157,11 +11162,6 @@ utils-merge@1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/utils-merge/-/utils-merge-1.0.1.tgz#9f95710f50a267947b2ccc124741c1028427e713"
   integrity sha1-n5VxD1CiZ5R7LMwSR0HBAoQn5xM=
-
-uuid@3.3.2:
-  version "3.3.2"
-  resolved "https://registry.yarnpkg.com/uuid/-/uuid-3.3.2.tgz#1b4af4955eb3077c501c23872fc6513811587131"
-  integrity sha512-yXJmeNaw3DnnKAOKJE51sL/ZaYfWJRl1pK9dr19YFCu0ObS231AB1/LbqTKRAQ5kw8A90rA6fr4riOUpTZvQZA==
 
 uuid@^3.3.2, uuid@^3.4.0:
   version "3.4.0"
