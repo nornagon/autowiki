@@ -9,7 +9,8 @@ function ReplicationPeer({doc, peer, onStateChange}: {doc: Y.Doc, peer: string, 
   useEffect(() => { stateChange.current = onStateChange }, [onStateChange])
   useEffect(() => {
     const protocol = window.location.protocol === 'https' ? 'wss' : 'ws'
-    const wsProvider = new WebsocketProvider(`${protocol}://${peer}`, 'autowiki', doc)
+    const [, key, host] = /^(?:([^@]+)@)?(.+)$/.exec(peer)!
+    const wsProvider = new WebsocketProvider(`${protocol}://${host}`, 'autowiki', doc, { params: { key } })
     let lastState: ReplicationState | null = null
     function setState(s: ReplicationState) {
       if (s !== lastState)
