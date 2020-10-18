@@ -37,6 +37,7 @@
   left: -50px;
   font-family: monospace;
   opacity: 0.3;
+  display: none;
 }
 
 .table {
