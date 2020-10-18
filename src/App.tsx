@@ -36,6 +36,20 @@ const useHistory = (): [string, (s: string) => void] => {
   return [pathname, navigate]
 }
 
+const requestPersistentStorage = (() => {
+  let persistentStorageRequested = false
+  return async function requestPersistentStorage() {
+    if (!persistentStorageRequested && navigator.storage && navigator.storage.persist) {
+      persistentStorageRequested = true
+      const isPersisted = await navigator.storage.persist()
+      if (!isPersisted) {
+        // TODO: warn the user more clearly
+        console.warn("Navigator declined persistent storage")
+      }
+    }
+  }
+})()
+
 function useStorage<T>(key: string, initial: () => T): [T, (f: (t: T) => void) => void] {
   const map = rootDoc.getMap('wiki')
   if (!map.has(key)) {
@@ -45,6 +59,7 @@ function useStorage<T>(key: string, initial: () => T): [T, (f: (t: T) => void) =
     })
   }
   function change(f: (t: T) => void) {
+    requestPersistentStorage()
     rootDoc.transact(() => {
       f(map.get(key))
     })
