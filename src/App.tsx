@@ -39,12 +39,16 @@ const useHistory = (): [string, (s: string) => void] => {
 const requestPersistentStorage = (() => {
   let persistentStorageRequested = false
   return async function requestPersistentStorage() {
-    if (!persistentStorageRequested && navigator.storage && navigator.storage.persist) {
+    if (!persistentStorageRequested) {
       persistentStorageRequested = true
-      const isPersisted = await navigator.storage.persist()
-      if (!isPersisted) {
-        // TODO: warn the user more clearly
-        console.warn("Navigator declined persistent storage")
+      if (navigator.storage && navigator.storage.persist) {
+        const isPersisted = await navigator.storage.persist()
+        if (!isPersisted) {
+          // TODO: warn the user more clearly
+          console.warn("Navigator declined persistent storage")
+        }
+      } else {
+        console.warn("Navigator does not support persistent storage")
       }
     }
   }
@@ -575,7 +579,6 @@ function App() {
   const [synced, setSynced] = useState(false)
   useEffect(() => {
     indexeddbProvider.whenSynced.then(() => {
-      console.log('loaded data from indexed db')
       setSynced(true)
     })
   }, [])
