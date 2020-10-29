@@ -24,6 +24,10 @@
   padding-inline-start: 2em;
 }
 
+.Page pre {
+  white-space: pre-wrap;
+}
+
 .Page .para.selected {
   background-color: cornsilk;
 }

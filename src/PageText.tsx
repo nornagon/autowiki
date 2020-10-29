@@ -2,6 +2,7 @@ import React, { useMemo } from "react"
 
 import markdown from 'remark-parse';
 import remark2rehype from 'remark-rehype';
+import highlight from 'remark-highlight.js';
 import raw from 'rehype-raw';
 import stringify from 'rehype-stringify';
 import unified from 'unified';
@@ -9,6 +10,8 @@ import u from 'unist-builder'
 import visit from 'unist-util-visit';
 import wikiLink from 'remark-wiki-link';
 import { remarkTruncateLinks } from 'remark-truncate-links';
+import 'highlight.js/styles/github.css';
+
 
 function makeCheckboxesEnabled() {
   return function(tree: any) {
@@ -31,6 +34,7 @@ function imageBlobReferences({getBlobURL}: {getBlobURL?: (hash: string) => strin
 function pipeline(getBlobURL?: (hash: string) => string | undefined) {
   return unified()
     .use(markdown)
+    .use(highlight)
     .use(wikiLink, {
       hrefTemplate: (link: string) => `/${link}`,
       pageResolver: (name: string) => [name],
