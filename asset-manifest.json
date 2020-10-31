@@ -1,0 +1,25 @@
+{
+  "files": {
+    "main.css": "/autowiki/static/css/main.723dd500.chunk.css",
+    "main.js": "/autowiki/static/js/main.36e050c0.chunk.js",
+    "main.js.map": "/autowiki/static/js/main.36e050c0.chunk.js.map",
+    "runtime-main.js": "/autowiki/static/js/runtime-main.311d4bf5.js",
+    "runtime-main.js.map": "/autowiki/static/js/runtime-main.311d4bf5.js.map",
+    "static/css/2.1d5ea050.chunk.css": "/autowiki/static/css/2.1d5ea050.chunk.css",
+    "static/js/2.11169ec9.chunk.js": "/autowiki/static/js/2.11169ec9.chunk.js",
+    "static/js/2.11169ec9.chunk.js.map": "/autowiki/static/js/2.11169ec9.chunk.js.map",
+    "index.html": "/autowiki/index.html",
+    "precache-manifest.fc62832b7c4d30b4a7f322dde1678608.js": "/autowiki/precache-manifest.fc62832b7c4d30b4a7f322dde1678608.js",
+    "service-worker.js": "/autowiki/service-worker.js",
+    "static/css/2.1d5ea050.chunk.css.map": "/autowiki/static/css/2.1d5ea050.chunk.css.map",
+    "static/css/main.723dd500.chunk.css.map": "/autowiki/static/css/main.723dd500.chunk.css.map",
+    "static/js/2.11169ec9.chunk.js.LICENSE.txt": "/autowiki/static/js/2.11169ec9.chunk.js.LICENSE.txt"
+  },
+  "entrypoints": [
+    "static/js/runtime-main.311d4bf5.js",
+    "static/css/2.1d5ea050.chunk.css",
+    "static/js/2.11169ec9.chunk.js",
+    "static/css/main.723dd500.chunk.css",
+    "static/js/main.36e050c0.chunk.js"
+  ]
+}
