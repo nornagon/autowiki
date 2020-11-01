@@ -8,29 +8,34 @@ function ReplicationPeer({doc, peer, onStateChange}: {doc: Y.Doc, peer: string, 
   const stateChange = useRef(onStateChange)
   useEffect(() => { stateChange.current = onStateChange }, [onStateChange])
   useEffect(() => {
-    const protocol = window.location.protocol === 'https' ? 'wss' : 'ws'
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const [, key, host] = /^(?:([^@]+)@)?(.+)$/.exec(peer)!
-    const wsProvider = new WebsocketProvider(`${protocol}://${host}`, 'autowiki', doc, { params: { key } })
-    let lastState: ReplicationState | null = null
-    function setState(s: ReplicationState) {
-      if (s !== lastState)
-        stateChange.current(s)
-      lastState = s
-    }
-    setState('offline')
-    wsProvider.on('status', (event: { status: 'connected' | 'disconnected' }) => {
-      if (event.status === 'connected') {
-        setState('behind')
-      } else if (event.status === 'disconnected') {
-        setState('offline')
+    const params: Record<string, string> = key ? { key } : {}
+    try {
+      const wsProvider = new WebsocketProvider(`${protocol}://${host}`, 'autowiki', doc, { params })
+      let lastState: ReplicationState | null = null
+      function setState(s: ReplicationState) {
+        if (s !== lastState)
+          stateChange.current(s)
+        lastState = s
       }
-    })
-    wsProvider.on('sync', (synced: boolean) => {
-      if (!synced && lastState === 'synced') setState('behind')
-      if (synced) setState('synced')
-    })
-    return () => {
-      wsProvider.destroy()
+      setState('offline')
+      wsProvider.on('status', (event: { status: 'connected' | 'disconnected' }) => {
+        if (event.status === 'connected') {
+          setState('behind')
+        } else if (event.status === 'disconnected') {
+          setState('offline')
+        }
+      })
+      wsProvider.on('sync', (synced: boolean) => {
+        if (!synced && lastState === 'synced') setState('behind')
+        if (synced) setState('synced')
+      })
+      return () => {
+        wsProvider.destroy()
+      }
+    } catch (e) {
+      alert(`Error connecting to replication peer: ${e}`)
     }
   }, [peer, doc])
   return null
