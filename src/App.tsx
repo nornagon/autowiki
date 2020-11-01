@@ -212,7 +212,7 @@ function Page({title}: {title: string}) {
   const textarea = useRef<HTMLTextAreaElement>(null)
 
   function onClickBlock(e: React.MouseEvent<HTMLDivElement>, i: number) {
-    if (e.target instanceof Element && e.target.nodeName === 'INPUT' && e.target.getAttribute('type')?.toLowerCase() === 'checkbox') {
+    if (e.target instanceof Element && (e.target.nodeName === 'INPUT' || e.defaultPrevented)) {
       const { nextElementSibling } = e.target
       if (nextElementSibling && nextElementSibling.hasAttribute('x-pos')) {
         changeData(d => {
