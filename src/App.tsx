@@ -5,15 +5,13 @@ import { IndexeddbPersistence } from 'y-indexeddb'
 import { opFromInput } from './textarea-op';
 import { Replicate, ReplicationState } from './Replicate';
 import PageText, { extractLinks } from './PageText';
-import * as b64 from 'base64-arraybuffer';
+import { deserialize, exportFormatError, serialize } from './export';
 
 type Page = Y.Array<Y.Text>
 
 const rootDoc = new Y.Doc()
 rootDoc.gc = false
 ;(window as any).rootDoc = rootDoc
-
-const EXPORT_VERSION = 1
 
 const indexeddbProvider = new IndexeddbPersistence('autowiki', rootDoc)
 
@@ -419,33 +417,25 @@ const MetaPages = {
       input.onchange = (e) => {
         if (input.files?.length) {
           (input.files[0] as any).arrayBuffer().then((buf: ArrayBuffer) => {
-            const bytes = new Uint8Array(buf)
-            if (bytes[0] !== 0x7b /* { */) {
-              alert("That doesn't look like a valid Autowiki export.")
-              return
-            }
-            const str = (new TextDecoder()).decode(buf)
             let json: any = null
             try {
+              const str = (new TextDecoder()).decode(buf)
               json = JSON.parse(str)
             } catch (e) {
-              alert("That doesn't look like a valid Autowiki export.")
+              alert("That doesn't look like a valid Autowiki export (not valid JSON).")
               return
             }
-            if (!json._autowiki) {
-              alert("That doesn't look like a valid Autowiki export.")
+            const formatError = exportFormatError(json)
+            if (formatError) {
+              alert(formatError)
               return
             }
-            if (json._autowiki.version > EXPORT_VERSION) {
-              alert("That file is too new for this version of Autowiki :(")
-              return
-            }
+
             const existingPages = new Set(rootDoc.getMap('wiki').keys())
             const added = Object.keys(json.wiki).filter(k => !existingPages.has(k))
             const replaced = Object.keys(json.wiki).filter(k => existingPages.has(k))
             const blobs = rootDoc.getMap('blobs')
             const newBlobs = Object.keys(json.blobs).filter(k => !blobs.has(k))
-            console.log(added, replaced, newBlobs)
             const warn = [
               {name: 'new page', values: added},
               {name: 'replaced page', values: replaced},
@@ -456,28 +446,7 @@ const MetaPages = {
               alert('Import cancelled.')
               return
             }
-            rootDoc.transact(() => {
-              const wiki: Y.Map<Y.Array<Y.Text>> = rootDoc.getMap('wiki')
-              for (const [page, data] of Object.entries<string[]>(json.wiki)) {
-                const existingPage = wiki.get(page)
-                if (existingPage?.length === data.length && existingPage?.toArray().every((x, i) => x.toString() === data[i]))
-                  continue
-                const arr = new Y.Array<Y.Text>()
-                arr.push(data.map(str => new Y.Text(str)))
-                wiki.set(page, arr)
-              }
-              type BlobData = {data: Uint8Array, type: string}
-              const blobs: Y.Map<BlobData> = rootDoc.getMap('blobs')
-              for (const [hash, blob] of Object.entries<any>(json.blobs)) {
-                if (blobs.has(hash))
-                  continue
-                blobs.set(hash, {
-                  ...blob,
-                  data: new Uint8Array(b64.decode(blob.data))
-                })
-              }
-            })
-            console.log(rootDoc.toJSON())
+            deserialize(rootDoc, json)
             alert('Import complete.')
           })
         }
@@ -486,14 +455,8 @@ const MetaPages = {
     }
     function doExport() {
       const a = document.createElement('a')
-      a.setAttribute('download', `autowiki-export-${(Date.now()/1000)|0}.json`)
-      const exportObj = {
-        _autowiki: { version: EXPORT_VERSION },
-        wiki: rootDoc.getMap('wiki').toJSON(),
-        blobs: Object.fromEntries([
-          ...Object.entries(rootDoc.getMap('blobs').toJSON())
-        ].map(([k, v]: [string, any]) => [k, {...v, data: b64.encode(v.data)}])),
-      }
+      a.setAttribute('download', `autowiki-export-${(new Date().toISOString())}.json`)
+      const exportObj = serialize(rootDoc)
       const exportData = JSON.stringify(exportObj)
       const blobURL = URL.createObjectURL(new Blob([exportData], {type: 'application/json'}))
       a.setAttribute('href', blobURL)
