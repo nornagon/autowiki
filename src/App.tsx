@@ -530,7 +530,7 @@ function Backlinks({backlinks}: {backlinks: LinkInfo[]}) {
     {backlinkingPages.length === 0 ? <p><em>No pages link here.</em></p> : null}
     <ul>
       {backlinkingPages.map(page => <li key={page}>
-        <a href={encodeURIComponent(page)} className="wikilink">{page}</a>:
+        <a href={page ? encodeURIComponent(page) : "/"} className="wikilink">{page || "/"}</a>:
         <ul>{backlinksByPage.get(page)!.map((l, i) => <li key={i}><PageText text={l.context} /></li>)}</ul>
       </li>)}
     </ul>
