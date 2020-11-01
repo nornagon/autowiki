@@ -632,9 +632,12 @@ function App() {
       <Backlinks backlinks={backlinks} />
     </>}
     <ReplicationStateIndicator state={peerState} onClick={() => {
-      const newPeers = (prompt("Peers?", peers.join(','))?.split(',') ?? []).map(x => x.trim()).filter(x => x)
-      setPeers(newPeers)
-      localStorage.setItem('peers', JSON.stringify(newPeers))
+      const newPeerString = prompt("Peers?", peers.join(','))
+      if (newPeerString) {
+        const newPeers = newPeerString.split(',').map(x => x.trim()).filter(x => x)
+        setPeers(newPeers)
+        localStorage.setItem('peers', JSON.stringify(newPeers))
+      }
     }} />
   </>;
 }

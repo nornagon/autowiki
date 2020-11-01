@@ -124,6 +124,7 @@ a.wikilink:visited {
   display: flex;
   justify-content: center;
   align-items: center;
+  cursor: pointer;
 }
 
 .ReplicationStateIndicator .bubble {
