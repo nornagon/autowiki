@@ -584,8 +584,8 @@ function ReplicationStateIndicator({state, onClick}: {state: Record<string, Repl
     }
     return m
   }, 'offline' as ReplicationState)
-  return <div style={{position: 'absolute', top: 20, right: 20, display: 'flex', justifyContent: 'center', alignItems: 'center'}} onClick={onClick}>
-    <div style={{borderRadius: 999, width: 10, height: 10, backgroundColor: aggregateState === 'offline' ? 'red' : aggregateState === 'behind' ? 'orange' : 'green'}} />
+  return <div className={`ReplicationStateIndicator ${aggregateState}`} onClick={onClick}>
+    <div className="bubble" />
   </div>
 }
 
