@@ -24,7 +24,7 @@ const app = express()
 app.use(bodyParser.json())
 app.use(cors())
 
-const persistenceDir = "./data-y"
+const persistenceDir = process.env.AUTOWIKI_PERSISTENCE_DIR ?? "./data-y"
 const ldb = new LeveldbPersistence(persistenceDir)
 
 setPersistence({
