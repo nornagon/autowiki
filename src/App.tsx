@@ -134,6 +134,16 @@ function findNearestParent(node: Node, fn: (n: Element) => boolean): Element | n
   return e
 }
 
+function expandText(text: string, lookup: (tag: string) => string | undefined, bannedTags: Set<string> = new Set()): string {
+  return text.replace(/\{\{([^}]+?)\}\}/g, (match, tag) => {
+    if (bannedTags.has(tag)) return match
+    const newBannedTags = new Set(bannedTags)
+    newBannedTags.add(tag)
+    const text = lookup(tag)
+    return text ? expandText(text, lookup, newBannedTags) : match
+  })
+}
+
 function Page({title}: {title: string}) {
   const [selected, setSelected] = useState(null as number | null)
   const [editing, setEditing] = useState(false)
@@ -255,6 +265,10 @@ function Page({title}: {title: string}) {
     {data.toArray().map((text, i) => {
       const idNum = mixedId(text._item?.lastId ?? {client: 0, clock: 0})
       const id = idNum.toString(16).padStart(8, '0')
+      const expandedText = expandText(
+        text.toString(),
+        (tag) => rootDoc.getMap('wiki').get(tag)?.map((block: Y.Text) => block.toString()).join("\n\n")
+      )
       return <div className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null} onClick={e => onClickBlock(e, i)}>
         <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(0, 3) ?? ''}</a></div>
         {editing && selected === i
@@ -354,7 +368,7 @@ function Page({title}: {title: string}) {
             />
         : text.toString()?.trim()
         ? <PageText
-            text={text.toString()}
+            text={expandedText}
             getBlobURL={getBlobURL} />
         : '\u00a0'}
       </div>
@@ -382,7 +396,7 @@ const MetaPages = {
       <h1>All Pages</h1>
       <ul>
         {[...allPages()].filter(x => x[1].toArray().some(x => x.length > 0)).sort((a, b) => a[0].localeCompare(b[0])).map(([title, page]) => {
-          return <li><a href={`/${title}`} className="wikilink">{title}</a></li>
+          return <li><a href={`/${title}`} className="wikilink">{title || '/'}</a></li>
         })}
       </ul>
     </div>
