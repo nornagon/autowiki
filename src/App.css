@@ -24,6 +24,15 @@
   padding-inline-start: 2em;
 }
 
+.Page li.task-list-item {
+  list-style-type: none;
+  margin-inline-start: -1.5em;
+}
+
+.Page li.task-list-item > ul, .Page li.task-list-item > ol {
+  margin-inline-start: 1.5em;
+}
+
 .Page pre {
   white-space: pre-wrap;
 }
