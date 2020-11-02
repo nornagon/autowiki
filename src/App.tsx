@@ -567,14 +567,12 @@ function App() {
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
-      if (e.target instanceof HTMLElement) {
-        if (e.target.tagName.toLowerCase() === 'a' && e.target.classList.contains('wikilink')) {
-          const target = e.target.getAttribute('href')
-          if (target) {
-            navigate(target)
-            e.preventDefault()
-            return
-          }
+      if (!(e.metaKey || e.ctrlKey || e.shiftKey) && e.target instanceof HTMLElement && e.target.tagName.toLowerCase() === 'a' && e.target.classList.contains('wikilink')) {
+        const target = e.target.getAttribute('href')
+        if (target) {
+          navigate(target)
+          e.preventDefault()
+          return
         }
       }
     }
