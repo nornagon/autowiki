@@ -75,8 +75,6 @@ const idbGetItem = async (key: string): Promise<any> => {
   })
 }
 
-//const indexeddbProvider = new IndexeddbPersistence('autowiki', rootDoc)
-
 const useHistory = (): [string, (s: string) => void] => {
   const [pathname, setPathname] = useState(window.location.pathname)
   function handlePopState() {
@@ -132,8 +130,12 @@ function useDocument<T>(id: string, initial: () => Automerge.Doc<T>): [Automerge
   return [doc, change]
 }
 
+function useWiki(): [Automerge.FreezeObject<Wiki>, (fn: Automerge.ChangeFn<Wiki>) => void] {
+  return useDocument<Wiki>('wiki', () => Automerge.from({ pages: {} }))
+}
+
 function usePage(title: string): [Automerge.FreezeObject<Page>, (fn: Automerge.ChangeFn<Page>) => void] {
-  const [doc, change] = useDocument<Wiki>('wiki', () => Automerge.from({ pages: {} }))
+  const [doc, change] = useWiki()
   const { pages } = doc
   const page = pages[title] ?? {blocks: [{ text: new Automerge.Text() }]}
   const changePage = (f: Automerge.ChangeFn<Page>) => {
@@ -148,13 +150,10 @@ function usePage(title: string): [Automerge.FreezeObject<Page>, (fn: Automerge.C
 }
 
 
-function* allPages(): Generator<[string, Page], any, unknown> {
-  /*
-  const doc = rootDoc.getMap('wiki')
-  for (const k of doc.keys()) {
-    yield [k, doc.get(k)]
+function* allPages(wiki: Wiki): Generator<[string, Page], any, unknown> {
+  for (const k of Object.keys(wiki.pages)) {
+    yield [k, wiki.pages[k]]
   }
-  */
 }
 
 function ExpandingTextAreaUnforwarded(opts: React.DetailedHTMLProps<React.TextareaHTMLAttributes<HTMLTextAreaElement>, HTMLTextAreaElement>, ref: any) {
@@ -218,6 +217,7 @@ function expandText(text: string, lookup: (tag: string) => string | undefined, b
 function Page({title}: {title: string}) {
   const [selected, setSelected] = useState(null as number | null)
   const [editing, setEditing] = useState(false)
+  const [wiki] = useWiki()
   const [data, changeData] = usePage(title)
   const selectedEl = useRef<HTMLDivElement>(null)
 
@@ -334,8 +334,7 @@ function Page({title}: {title: string}) {
       const id = '' //idNum.toString(16).padStart(8, '0')
       const expandedText = expandText(
         block.text.toString(),
-        (tag) => undefined // TODO
-        //(tag) => rootDoc.getMap('wiki').get(tag)?.map((block: Y.Text) => block.toString()).join("\n\n")
+        (tag) => wiki.pages[tag]?.blocks.map(block => block.text.toString()).join("\n\n")
       )
       return <div className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null} onClick={e => onClickBlock(e, i)}>
         <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(0, 3) ?? ''}</a></div>
@@ -462,10 +461,12 @@ function MetaPage({page, ...rest}: {page: string}) {
 
 const MetaPages = {
   all: () => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const [wiki] = useWiki()
     return <div className="Page">
       <h1>All Pages</h1>
       <ul>
-        {[...allPages()].filter(x => x[1].blocks.some(x => x.text.length > 0)).sort((a, b) => a[0].localeCompare(b[0])).map(([title, page]) => {
+        {[...allPages(wiki)].filter(x => x[1].blocks.some(x => x.text.length > 0)).sort((a, b) => a[0].localeCompare(b[0])).map(([title, page]) => {
           return <li><a href={`/${title}`} className="wikilink">{title || '/'}</a></li>
         })}
       </ul>
@@ -632,9 +633,9 @@ function Backlinks({backlinks}: {backlinks: LinkInfo[]}) {
 
 type LinkInfo = {page: string, context: string}
 
-function getBlocksLinkingTo(pageTitle: string): LinkInfo[] {
+function getBlocksLinkingTo(wiki: Wiki, pageTitle: string): LinkInfo[] {
   const links: LinkInfo[] = []
-  for (const [k, v] of allPages()) {
+  for (const [k, v] of allPages(wiki)) {
     if (k === pageTitle) continue
     for (const block of v.blocks) {
       for (const link of extractLinks(block.toString())) {
@@ -699,9 +700,10 @@ function App() {
       window.removeEventListener('click', onClick)
     }
   }, [navigate])
+  const [wiki] = useWiki()
 
   // TODO: this also depends on the other docs, but for now let's only recalculate it when you navigate.
-  const backlinks = useMemo(() => getBlocksLinkingTo(pageTitle), [pageTitle, synced])
+  const backlinks = useMemo(() => getBlocksLinkingTo(wiki, pageTitle), [pageTitle, synced])
   //if (!synced) return <>Loading...</>
 
   return <>
