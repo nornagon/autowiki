@@ -24,6 +24,19 @@
   padding-inline-start: 2em;
 }
 
+.Page li.task-list-item {
+  list-style-type: none;
+  margin-inline-start: -1.5em;
+}
+
+.Page li.task-list-item > ul, .Page li.task-list-item > ol {
+  margin-inline-start: 1.5em;
+}
+
+.Page pre {
+  white-space: pre-wrap;
+}
+
 .Page .para.selected {
   background-color: cornsilk;
 }
@@ -37,6 +50,7 @@
   left: -50px;
   font-family: monospace;
   opacity: 0.3;
+  display: none;
 }
 
 .table {
@@ -110,4 +124,27 @@ a.wikilink:after {
 }
 a.wikilink:visited {
   color: #106ba3;
+}
+
+.ReplicationStateIndicator {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+}
+
+.ReplicationStateIndicator .bubble {
+  border-radius: 999px;
+  width: 10px;
+  height: 10px;
+  background-color: red;
+}
+.ReplicationStateIndicator.behind .bubble {
+  background-color: orange;
+}
+.ReplicationStateIndicator.synced .bubble {
+  background-color: green;
 }

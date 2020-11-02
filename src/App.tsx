@@ -1,12 +1,10 @@
-/// <reference path="../node_modules/automerge/@types/automerge/index.d.ts" />
-
 import React, { useEffect, useState, useMemo, useReducer, useRef, forwardRef, useCallback } from 'react';
 import './App.css';
 import Automerge from 'automerge';
 import { opFromInput } from './textarea-op';
 import { Replicate, ReplicationState } from './Replicate';
 import PageText, { extractLinks } from './PageText';
-import * as b64 from 'base64-arraybuffer';
+import { deserialize, exportFormatError, serialize } from './export';
 import { debounce } from 'debounce';
 
 const EXPORT_VERSION = 1
@@ -97,7 +95,27 @@ const useHistory = (): [string, (s: string) => void] => {
   }, [])
   return [pathname, navigate]
 }
+
+const requestPersistentStorage = (() => {
+  let persistentStorageRequested = false
+  return async function requestPersistentStorage() {
+    if (!persistentStorageRequested) {
+      persistentStorageRequested = true
+      if (navigator.storage && navigator.storage.persist) {
+        const isPersisted = await navigator.storage.persist()
+        if (!isPersisted) {
+          // TODO: warn the user more clearly
+          console.warn("Navigator declined persistent storage")
+        }
+      } else {
+        console.warn("Navigator does not support persistent storage")
+      }
+    }
+  }
+})()
+
 function useDocument<T>(id: string, initial: () => Automerge.Doc<T>): [Automerge.FreezeObject<T>, (fn: Automerge.ChangeFn<T>) => void] {
+  useEffect(() => { requestPersistentStorage() }, [])
   const [doc, setDoc] = useState(initial)
   useEffect(() => {
     idbGetItem("automerge:wiki").then((data) => {
@@ -187,6 +205,16 @@ function findNearestParent(node: Node, fn: (n: Element) => boolean): Element | n
   return e
 }
 
+function expandText(text: string, lookup: (tag: string) => string | undefined, bannedTags: Set<string> = new Set()): string {
+  return text.replace(/\{\{([^}]+?)\}\}/g, (match, tag) => {
+    if (bannedTags.has(tag)) return match
+    const newBannedTags = new Set(bannedTags)
+    newBannedTags.add(tag)
+    const text = lookup(tag)
+    return text ? expandText(text, lookup, newBannedTags) : match
+  })
+}
+
 function Page({title}: {title: string}) {
   const [selected, setSelected] = useState(null as number | null)
   const [editing, setEditing] = useState(false)
@@ -261,7 +289,7 @@ function Page({title}: {title: string}) {
   const textarea = useRef<HTMLTextAreaElement>(null)
 
   function onClickBlock(e: React.MouseEvent<HTMLDivElement>, i: number) {
-    if (e.target instanceof Element && e.target.nodeName === 'INPUT' && e.target.getAttribute('type')?.toLowerCase() === 'checkbox') {
+    if (e.target instanceof Element && (e.target.nodeName === 'INPUT' || e.defaultPrevented)) {
       const { nextElementSibling } = e.target
       if (nextElementSibling && nextElementSibling.hasAttribute('x-pos')) {
         changeData(d => {
@@ -304,6 +332,11 @@ function Page({title}: {title: string}) {
     {data.blocks.map((block, i) => {
       //const idNum = mixedId(text._item?.lastId ?? {client: 0, clock: 0})
       const id = '' //idNum.toString(16).padStart(8, '0')
+      const expandedText = expandText(
+        block.text.toString(),
+        (tag) => undefined // TODO
+        //(tag) => rootDoc.getMap('wiki').get(tag)?.map((block: Y.Text) => block.toString()).join("\n\n")
+      )
       return <div className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null} onClick={e => onClickBlock(e, i)}>
         <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(0, 3) ?? ''}</a></div>
         {editing && selected === i
@@ -405,7 +438,7 @@ function Page({title}: {title: string}) {
             />
         : block.text.toString()?.trim()
         ? <PageText
-            text={block.text.toString()}
+            text={expandedText}
             getBlobURL={getBlobURL} />
         : '\u00a0'}
       </div>
@@ -433,7 +466,7 @@ const MetaPages = {
       <h1>All Pages</h1>
       <ul>
         {[...allPages()].filter(x => x[1].blocks.some(x => x.text.length > 0)).sort((a, b) => a[0].localeCompare(b[0])).map(([title, page]) => {
-          return <li><a href={`/${title}`} className="wikilink">{title}</a></li>
+          return <li><a href={`/${title}`} className="wikilink">{title || '/'}</a></li>
         })}
       </ul>
     </div>
@@ -460,25 +493,17 @@ const MetaPages = {
       input.onchange = (e) => {
         if (input.files?.length) {
           (input.files[0] as any).arrayBuffer().then((buf: ArrayBuffer) => {
-            const bytes = new Uint8Array(buf)
-            if (bytes[0] !== 0x7b /* { */) {
-              alert("That doesn't look like a valid Autowiki export.")
-              return
-            }
-            const str = (new TextDecoder()).decode(buf)
             let json: any = null
             try {
+              const str = (new TextDecoder()).decode(buf)
               json = JSON.parse(str)
             } catch (e) {
-              alert("That doesn't look like a valid Autowiki export.")
+              alert("That doesn't look like a valid Autowiki export (not valid JSON).")
               return
             }
-            if (!json._autowiki) {
-              alert("That doesn't look like a valid Autowiki export.")
-              return
-            }
-            if (json._autowiki.version > EXPORT_VERSION) {
-              alert("That file is too new for this version of Autowiki :(")
+            const formatError = exportFormatError(json)
+            if (formatError) {
+              alert(formatError)
               return
             }
             const existingPages = new Set(Object.keys(doc.pages))
@@ -535,7 +560,7 @@ const MetaPages = {
     }
     function doExport() {
       const a = document.createElement('a')
-      a.setAttribute('download', `autowiki-export-${(Date.now()/1000)|0}.json`)
+      a.setAttribute('download', `autowiki-export-${(new Date().toISOString())}.json`)
       const exportObj = {
         _autowiki: { version: EXPORT_VERSION },
         wiki: doc,
@@ -598,7 +623,7 @@ function Backlinks({backlinks}: {backlinks: LinkInfo[]}) {
     {backlinkingPages.length === 0 ? <p><em>No pages link here.</em></p> : null}
     <ul>
       {backlinkingPages.map(page => <li key={page}>
-        <a href={encodeURIComponent(page)} className="wikilink">{page}</a>:
+        <a href={page ? encodeURIComponent(page) : "/"} className="wikilink">{page || "/"}</a>:
         <ul>{backlinksByPage.get(page)!.map((l, i) => <li key={i}><PageText text={l.context} /></li>)}</ul>
       </li>)}
     </ul>
@@ -638,8 +663,8 @@ function ReplicationStateIndicator({state, onClick}: {state: Record<string, Repl
     }
     return m
   }, 'offline' as ReplicationState)
-  return <div style={{position: 'absolute', top: 20, right: 20, display: 'flex', justifyContent: 'center', alignItems: 'center'}} onClick={onClick}>
-    <div style={{borderRadius: 999, width: 10, height: 10, backgroundColor: aggregateState === 'offline' ? 'red' : aggregateState === 'behind' ? 'orange' : 'green'}} />
+  return <div className={`ReplicationStateIndicator ${aggregateState}`} onClick={onClick}>
+    <div className="bubble" />
   </div>
 }
 
@@ -648,7 +673,6 @@ function App() {
   /*
   useEffect(() => {
     indexeddbProvider.whenSynced.then(() => {
-      console.log('loaded data from indexed db')
       setSynced(true)
     })
   }, [])
@@ -661,14 +685,12 @@ function App() {
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
-      if (e.target instanceof HTMLElement) {
-        if (e.target.tagName.toLowerCase() === 'a' && e.target.classList.contains('wikilink')) {
-          const target = e.target.getAttribute('href')
-          if (target) {
-            navigate(target)
-            e.preventDefault()
-            return
-          }
+      if (!(e.metaKey || e.ctrlKey || e.shiftKey) && e.target instanceof HTMLElement && e.target.tagName.toLowerCase() === 'a' && e.target.classList.contains('wikilink')) {
+        const target = e.target.getAttribute('href')
+        if (target) {
+          navigate(target)
+          e.preventDefault()
+          return
         }
       }
     }
@@ -689,9 +711,12 @@ function App() {
       <Backlinks backlinks={backlinks} />
     </>}
     <ReplicationStateIndicator state={peerState} onClick={() => {
-      const newPeers = (prompt("Peers?", peers.join(','))?.split(',') ?? []).map(x => x.trim()).filter(x => x)
-      setPeers(newPeers)
-      localStorage.setItem('peers', JSON.stringify(newPeers))
+      const newPeerString = prompt("Peers?", peers.join(','))
+      if (newPeerString) {
+        const newPeers = newPeerString.split(',').map(x => x.trim()).filter(x => x)
+        setPeers(newPeers)
+        localStorage.setItem('peers', JSON.stringify(newPeers))
+      }
     }} />
   </>;
 }
