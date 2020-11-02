@@ -43,8 +43,8 @@ setPersistence({
 const server = app.listen(process.env.PORT ?? 3030, () => {
   const {family, address, port} = server.address() as any;
   const addr = `${family === "IPv6" ? `[${address}]` : address}:${port}`;
-  console.log(`Server listening on http://${addr}`);
-  console.log(`Peer key is ${secret}@${addr}`)
+  console.log(`Server listening on ${addr}`);
+  console.log(`Peer key is ${secret}`)
 })
 
 const wss = new WebSocket.Server({ noServer: true })
@@ -56,7 +56,7 @@ function isValidSecret(key: string): boolean {
 }
 
 server.on('upgrade', (req, socket, head) => {
-  const params = new (globalThis as any).URL('x:' + req.url).searchParams
+  const params = new URL('x:' + req.url).searchParams
   if (!params.has('key') || !isValidSecret(params.get("key"))) {
     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
     socket.destroy()
