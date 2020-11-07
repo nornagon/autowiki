@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useReducer, useRef, forwardRef, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useReducer, useRef, forwardRef, useCallback, useContext } from 'react';
 import './App.css';
 import Automerge from 'automerge';
 import { opFromInput } from './textarea-op';
@@ -112,6 +112,18 @@ const requestPersistentStorage = (() => {
   }
 })()
 
+type DocHook<T> = [Automerge.FreezeObject<T>, (fn: Automerge.ChangeFn<T>) => void]
+
+const WikiDocument = React.createContext<DocHook<Wiki> | null>(null)
+
+function useWikiDocument(): [Automerge.FreezeObject<Wiki>, (fn: Automerge.ChangeFn<Wiki>) => void] {
+  useEffect(() => { requestPersistentStorage() }, [])
+  const doc = useContext(WikiDocument)
+  return doc!
+}
+
+
+/*
 function useDocument<T>(id: string, initial: () => Automerge.Doc<T>): [Automerge.FreezeObject<T>, (fn: Automerge.ChangeFn<T>) => void] {
   useEffect(() => { requestPersistentStorage() }, [])
   const [doc, setDoc] = useState(initial)
@@ -129,9 +141,11 @@ function useDocument<T>(id: string, initial: () => Automerge.Doc<T>): [Automerge
   }, [id, doc])
   return [doc, change]
 }
+*/
 
 function useWiki(): [Automerge.FreezeObject<Wiki>, (fn: Automerge.ChangeFn<Wiki>) => void] {
-  return useDocument<Wiki>('wiki', () => Automerge.from({ pages: {} }))
+  //return useDocument<Wiki>('wiki', () => Automerge.from({ pages: {} }))
+  return useWikiDocument()
 }
 
 function usePage(title: string): [Automerge.FreezeObject<Page>, (fn: Automerge.ChangeFn<Page>) => void] {
@@ -486,7 +500,7 @@ const MetaPages = {
   */
   export: () => {
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [doc, change] = useDocument<Wiki>('wiki', () => Automerge.from({ pages: {} }))
+    const [doc, change] = useWikiDocument()
     function doImport() {
       const input = document.createElement('input')
       input.setAttribute('type', 'file')
@@ -669,15 +683,26 @@ function ReplicationStateIndicator({state, onClick}: {state: Record<string, Repl
   </div>
 }
 
-function App() {
-  const [synced, setSynced] = useState(false)
-  /*
+function AppWrapper() {
+  const [doc, setDoc] = useState<Automerge.Doc<Wiki> | null>(null)
   useEffect(() => {
-    indexeddbProvider.whenSynced.then(() => {
-      setSynced(true)
+    idbGetItem("automerge:wiki").then((data) => {
+      if (data)
+        setDoc(Automerge.load(data))
     })
   }, [])
-  */
+  const change = useCallback((fn: Automerge.ChangeFn<Wiki>) => {
+    const newDoc = Automerge.change(doc, fn)
+    setDoc(newDoc)
+    save("automerge:wiki", newDoc!)
+    //docSet.setDoc(id, Automerge.change(doc, fn))
+  }, [doc])
+  return <WikiDocument.Provider value={[doc!, change]}>
+    {doc ? <App/> : 'Loading...'}
+  </WikiDocument.Provider>
+}
+
+function App() {
   const [pathname, navigate] = useHistory()
   const [peers, setPeers] = useState<string[]>(() => JSON.parse(localStorage.getItem('peers') ?? '[]'))
   const [peerState, setPeerState] = useState<Record<string, ReplicationState>>({})
@@ -703,7 +728,7 @@ function App() {
   const [wiki] = useWiki()
 
   // TODO: this also depends on the other docs, but for now let's only recalculate it when you navigate.
-  const backlinks = useMemo(() => getBlocksLinkingTo(wiki, pageTitle), [pageTitle, synced])
+  const backlinks = useMemo(() => getBlocksLinkingTo(wiki, pageTitle), [pageTitle])
   //if (!synced) return <>Loading...</>
 
   return <>
@@ -723,4 +748,4 @@ function App() {
   </>;
 }
 
-export default App;
+export default AppWrapper;
