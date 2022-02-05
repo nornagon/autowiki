@@ -1,4 +1,4 @@
-import * as b64 from 'base64-arraybuffer';
+//import * as b64 from 'base64-arraybuffer';
 
 type Base64String = string
 type ExportFormatV0 = {
@@ -6,11 +6,13 @@ type ExportFormatV0 = {
   wiki: Record<string, string[]>,
   blobs: Record<string, {data: Base64String, type: string}>
 }
+/*
 type ExportFormatV1 = {
   _autowiki: { version: 2 }
   wiki: Record<string, {blocks: Array<{text: string}>}>
   blobs: Record<string, {data: Base64String, type: string}>
 }
+*/
 const IMPORT_TRANSFORMERS = [
   (x: any): ExportFormatV0 => x,
   /*

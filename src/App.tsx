@@ -107,6 +107,7 @@ function* allPages(wiki: Automerge.Doc<Wiki>): Generator<[string, Page], any, un
   }
 }
 
+/*
 // http://isthe.com/chongo/tech/comp/fnv/
 // FNV1a:
 // hash = offset_basis
@@ -130,6 +131,7 @@ function fnvHash(bytes: Iterable<number>): number {
 function fnvHashInt32s(int32s: number[]): number {
   return fnvHash(Uint32Array.from(int32s))
 }
+*/
 
 /*
 function mixedId(id: Y.ID): number {

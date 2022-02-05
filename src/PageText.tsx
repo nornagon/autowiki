@@ -5,9 +5,9 @@ import remark2rehype from 'remark-rehype';
 import highlight from 'remark-highlight.js';
 import raw from 'rehype-raw';
 import stringify from 'rehype-stringify';
-import unified from 'unified';
-import u from 'unist-builder'
-import visit from 'unist-util-visit';
+import { unified } from 'unified';
+import { u } from 'unist-builder'
+import { visit } from 'unist-util-visit';
 import wikiLink from 'remark-wiki-link';
 import { remarkTruncateLinks } from 'remark-truncate-links';
 import 'highlight.js/styles/github.css';
@@ -72,7 +72,7 @@ function pipeline(getBlobURL?: (id: string) => string | undefined) {
       }
     })
     .use(makeCheckboxesEnabled)
-    .use(raw)
+    .use([raw])
     .use(imageBlobReferences, {getBlobURL})
     .use(stringify)
 }
