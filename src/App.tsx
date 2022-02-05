@@ -626,9 +626,9 @@ function getBlocksLinkingTo(wiki: Wiki, pageTitle: string): LinkInfo[] {
   for (const [k, v] of allPages(wiki)) {
     if (k === pageTitle) continue
     for (const block of v.blocks) {
-      for (const link of extractLinks(block.toString())) {
+      for (const link of extractLinks(block.text.toString())) {
         if (link.href === pageTitle)
-          links.push({page: k, context: block.toString()})
+          links.push({page: k, context: block.text.toString()})
       }
     }
   }
@@ -701,7 +701,7 @@ function App() {
   const [wiki, , updateDoc] = useWiki()
 
   // TODO: this also depends on the other docs, but for now let's only recalculate it when you navigate.
-  const backlinks = useMemo(() => getBlocksLinkingTo(wiki, pageTitle), [pageTitle])
+  const backlinks = useMemo(() => getBlocksLinkingTo(wiki, pageTitle), [pageTitle, wiki])
   //if (!synced) return <>Loading...</>
 
   return <>
