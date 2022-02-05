@@ -2,10 +2,12 @@ import React, { useEffect, useState, useMemo, useReducer, useRef, forwardRef, us
 import './App.css';
 import Automerge from 'automerge';
 import { opFromInput } from './textarea-op';
+import * as uuid from 'uuid';
 import { Replicate, ReplicationState } from './Replicate';
 import PageText, { extractLinks } from './PageText';
 import { deserialize, exportFormatError, serialize } from './export';
 import { debounce } from 'debounce';
+import * as b64 from 'base64-arraybuffer';
 
 const EXPORT_VERSION = 1
 
@@ -17,8 +19,14 @@ type Page = {
   blocks: Automerge.List<Block>
 }
 
+type Blob = {
+  data: string; // b64
+  type: string;
+}
+
 type Wiki = {
-  pages: Record<string, Page>
+  pages: Record<string, Page>;
+  blobs: Record<string, Blob>;
 }
 
 let changesPending = false
@@ -138,7 +146,7 @@ function usePage(title: string): [Automerge.FreezeObject<Page>, (fn: Automerge.C
 }
 
 
-function* allPages(wiki: Wiki): Generator<[string, Page], any, unknown> {
+function* allPages(wiki: Automerge.Doc<Wiki>): Generator<[string, Page], any, unknown> {
   for (const k of Object.keys(wiki?.pages ?? {})) {
     yield [k, wiki.pages[k]]
   }
@@ -205,7 +213,7 @@ function expandText(text: string, lookup: (tag: string) => string | undefined, b
 function Page({title}: {title: string}) {
   const [selected, setSelected] = useState(null as number | null)
   const [editing, setEditing] = useState(false)
-  const [wiki] = useWiki()
+  const [wiki, changeWiki] = useWiki()
   const [data, changeData] = usePage(title)
   const selectedEl = useRef<HTMLDivElement>(null)
 
@@ -384,54 +392,52 @@ function Page({title}: {title: string}) {
               }
             }}
             onPaste={e => {
-              /*
               const { currentTarget } = e
               const { selectionStart, selectionEnd } = currentTarget
               for (const item of e.clipboardData.items) {
                 const mimeType = item.type
                 if (mimeType.startsWith('image/')) {
                   e.preventDefault()
+                  const id = uuid.v4()
                   changeData(d => {
                     const { text } = d.blocks[selected]
                     if (selectionEnd !== selectionStart)
                       text.deleteAt!(selectionStart, selectionEnd - selectionStart)
-                    text.insertAt!(selectionStart, '![](...)')
+                    text.insertAt!(selectionStart, ...`![](blob:${id})`)
                   })
-                  const relStart = Y.createRelativePositionFromTypeIndex(data.get(selected), selectionStart + 4)
-                  const relEnd = Y.createRelativePositionFromTypeIndex(data.get(selected), selectionStart + 7)
                   ;(async () => {
                     const buf = await (item.getAsFile() as any).arrayBuffer()
-                    const digest = await crypto.subtle.digest('SHA-256', buf!)
-                    const digestStr = [...new Uint8Array(digest)].map(x => x.toString(16).padStart(2, '0')).join('')
-                    const blobs = rootDoc.getMap('blobs')
-                    rootDoc.transact(() => {
-                      if (!blobs.has(digestStr)) {
-                        blobs.set(digestStr, {data: new Uint8Array(buf), type: mimeType})
-                      }
-                      const text = data.get(selected)
-                      const absStart = Y.createAbsolutePositionFromRelativePosition(relStart, rootDoc)
-                      const absEnd = Y.createAbsolutePositionFromRelativePosition(relEnd, rootDoc)
-                      if (absStart && absEnd) {
-                        text.delete(absStart.index, absEnd.index - absStart.index)
-                        text.insert(absStart.index, `blob:${digestStr}`)
-                      }
+                    changeWiki(w => {
+                      if (!w.blobs) w.blobs = {}
+                      w.blobs[id] = { data: b64.encode(buf), type: mimeType }
                     })
                   })()
                   break;
                 }
               }
-              */
             }}
             />
         : block.text.toString()?.trim()
         ? <PageText
             text={expandedText}
-            getBlobURL={getBlobURL} />
+            getBlobURL={(id) => {
+              if (!blobURLs.has(id)) {
+                if (Object.hasOwnProperty.call(wiki?.blobs ?? {}, id)) {
+                  const blob = wiki.blobs[id]
+                  if (blob && typeof blob.data === 'string') {
+                    const { data, type } = blob
+                    blobURLs.set(id, URL.createObjectURL(new Blob([b64.decode(data)], { type })))
+                  }
+                }
+              }
+              return blobURLs.get(id)
+            }} />
         : '\u00a0'}
       </div>
     })}
   </article>
 }
+const blobURLs = new Map<string, string>()
 
 function isValidMetaPage(x: any): x is keyof typeof MetaPages {
   return Object.prototype.hasOwnProperty.call(MetaPages, x)
@@ -454,24 +460,36 @@ const MetaPages = {
     return <div className="Page">
       <h1>All Pages</h1>
       <ul>
-        {[...allPages(wiki)].filter(x => x[1].blocks.some(x => x.text.length > 0)).sort((a, b) => a[0].localeCompare(b[0])).map(([title, page]) => {
+        {[...allPages(wiki)].filter(x => x[1].blocks.some(x => x.text.length > 0)).sort((a, b) => a[0].localeCompare(b[0])).map(([title, _page]) => {
           return <li><a href={`/${title}`} className="wikilink">{title || '/'}</a></li>
         })}
       </ul>
     </div>
   },
-  /*
   blobs: () => {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const [wiki] = useWiki()
+    const getBlobURL = (id: string) => {
+      if (!blobURLs.has(id)) {
+        if (Object.hasOwnProperty.call(wiki?.blobs ?? {}, id)) {
+          const blob = wiki.blobs[id]
+          if (blob && typeof blob.data === 'string') {
+            const { data, type } = blob
+            blobURLs.set(id, URL.createObjectURL(new Blob([b64.decode(data)], { type })))
+          }
+        }
+      }
+      return blobURLs.get(id)
+    }
     return <div className="Page">
       <h1>Blobs</h1>
       <ul>
-        {[...rootDoc.getMap("blobs").keys()].map(hash => {
-          return <li><img src={getBlobURL(hash)} style={{width: 256, height: 256, objectFit: 'cover'}} alt={hash}/></li>
+        {[...Object.keys(wiki.blobs ?? {})].map(id => {
+          return <li><img src={getBlobURL(id)} style={{width: 256, height: 256, objectFit: 'cover', display: 'block'}} alt={id}/>{id}</li>
         })}
       </ul>
     </div>
   },
-  */
   export: () => {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const [doc, change] = useWiki()
@@ -479,7 +497,7 @@ const MetaPages = {
       const input = document.createElement('input')
       input.setAttribute('type', 'file')
       input.setAttribute('hidden', 'hidden')
-      input.onchange = (e) => {
+      input.onchange = () => {
         if (input.files?.length) {
           (input.files[0] as any).arrayBuffer().then((buf: ArrayBuffer) => {
             let json: any = null
@@ -495,16 +513,16 @@ const MetaPages = {
               alert(formatError)
               return
             }
-            const existingPages = new Set(Object.keys(doc.pages))
+            const existingPages = new Set(Object.keys(doc?.pages ?? {}))
             const added = Object.keys(json.wiki.pages).filter(k => !existingPages.has(k))
             const replaced = Object.keys(json.wiki.pages).filter(k => existingPages.has(k))
-            //const blobs = rootDoc.getMap('blobs')
-            //const newBlobs = Object.keys(json.blobs).filter(k => !blobs.has(k))
-            //console.log(added, replaced, newBlobs)
+            const blobs = new Set(Object.keys(doc?.blobs ?? {}))
+            const newBlobs = Object.keys(json.wiki.blobs).filter(k => !blobs.has(k))
+            console.log(added, replaced, newBlobs)
             const warn = [
               {name: 'new page', values: added},
               {name: 'replaced page', values: replaced},
-              //{name: 'new blob', values: newBlobs}
+              {name: 'new blob', values: newBlobs}
             ]
             const warnStr = `This import contains ${warn.map(({name, values}) => `${values.length} ${name}${values.length === 1 ? '' : 's'}`).join(', ')}. Go ahead?`
             if (!window.confirm(warnStr)) {
@@ -512,35 +530,19 @@ const MetaPages = {
               return
             }
             change(doc => {
+              if (!doc.pages) doc.pages = {}
               for (const [page, data] of Object.entries(json.wiki.pages as Record<string, {blocks: {text: string}[]}>)) {
                 const existingPage = doc.pages[page]
                 if (existingPage?.blocks.length === data.blocks.length && existingPage?.blocks.every((x, i) => x.text.toString() === data.blocks[i].text))
                   continue
                 doc.pages[page] = { blocks: data.blocks.map(str => ({ text: new Automerge.Text(str.text) })) }
               }
+              if (!doc.blobs) doc.blobs = {}
+              for (const [id, blob] of Object.entries(json.wiki.blobs as Record<string, Blob>)) {
+                if (!Object.hasOwnProperty.call(doc.blobs, id))
+                  doc.blobs[id] = blob
+              }
             })
-            // rootDoc.transact(() => {
-            //   const wiki: Y.Map<Y.Array<Y.Text>> = rootDoc.getMap('wiki')
-            //   for (const [page, data] of Object.entries<string[]>(json.wiki)) {
-            //     const existingPage = wiki.get(page)
-            //     if (existingPage?.length === data.length && existingPage?.toArray().every((x, i) => x.toString() === data[i]))
-            //       continue
-            //     const arr = new Y.Array<Y.Text>()
-            //     arr.push(data.map(str => new Y.Text(str)))
-            //     wiki.set(page, arr)
-            //   }
-            //   type BlobData = {data: Uint8Array, type: string}
-            //   const blobs: Y.Map<BlobData> = rootDoc.getMap('blobs')
-            //   for (const [hash, blob] of Object.entries<any>(json.blobs)) {
-            //     if (blobs.has(hash))
-            //       continue
-            //     blobs.set(hash, {
-            //       ...blob,
-            //       data: new Uint8Array(b64.decode(blob.data))
-            //     })
-            //   }
-            // })
-            //console.log(rootDoc.toJSON())
             alert('Import complete.')
           })
         }
@@ -553,11 +555,6 @@ const MetaPages = {
       const exportObj = {
         _autowiki: { version: EXPORT_VERSION },
         wiki: doc,
-        /*
-        blobs: Object.fromEntries([
-          ...Object.entries(rootDoc.getMap('blobs').toJSON())
-        ].map(([k, v]: [string, any]) => [k, {...v, data: b64.encode(v.data)}])),
-        */
       }
       const exportData = JSON.stringify(exportObj)
       const blobURL = URL.createObjectURL(new Blob([exportData], {type: 'application/json'}))
@@ -577,22 +574,6 @@ const MetaPages = {
       </p>
     </div>
   }
-}
-
-const blobURLs = new Map<string, string>()
-function getBlobURL(hash: string): string | undefined {
-/*
-  if (!blobURLs.has(hash)) {
-    const blob = rootDoc.getMap('blobs').get(hash)
-    if (blob && blob.data instanceof Uint8Array) {
-      const data = blob.data
-      const type = blob.type
-      blobURLs.set(hash, URL.createObjectURL(new Blob([data], { type })))
-    }
-  }
-  return blobURLs.get(hash)
-  */
-  return undefined
 }
 
 function Backlinks({backlinks}: {backlinks: LinkInfo[]}) {
@@ -621,7 +602,7 @@ function Backlinks({backlinks}: {backlinks: LinkInfo[]}) {
 
 type LinkInfo = {page: string, context: string}
 
-function getBlocksLinkingTo(wiki: Wiki, pageTitle: string): LinkInfo[] {
+function getBlocksLinkingTo(wiki: Automerge.Doc<Wiki>, pageTitle: string): LinkInfo[] {
   const links: LinkInfo[] = []
   for (const [k, v] of allPages(wiki)) {
     if (k === pageTitle) continue
@@ -659,6 +640,7 @@ function ReplicationStateIndicator({state, onClick}: {state: Record<string, Repl
 
 function AppWrapper() {
   const [doc, setDoc] = useState<Automerge.Doc<Wiki>>(null as any)
+  console.log(doc)
   useEffect(() => {
     idbGetItem("automerge:wiki").then((data) => {
       setDoc(data ? Automerge.load(data) : Automerge.init())
@@ -668,8 +650,8 @@ function AppWrapper() {
     if (doc != null) save("automerge:wiki", doc)
   }, [doc])
   const change = useCallback((fn: Automerge.ChangeFn<Wiki>) => {
-    setDoc(Automerge.change(doc, fn)!)
-  }, [doc])
+    setDoc(doc => Automerge.change(doc, fn)!)
+  }, [])
   return <WikiDocument.Provider value={[doc!, change, setDoc]}>
     {doc ? <App/> : 'Loading...'}
   </WikiDocument.Provider>

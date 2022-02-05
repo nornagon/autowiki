@@ -21,7 +21,7 @@ function makeCheckboxesEnabled() {
   }
 }
 
-function imageBlobReferences({getBlobURL}: {getBlobURL?: (hash: string) => string | undefined}) {
+function imageBlobReferences({getBlobURL}: {getBlobURL?: (id: string) => string | undefined}) {
   return function(tree: any) {
     if (getBlobURL) {
       visit(tree, ((e: any) => e.type === 'element' && e.tagName === 'img' && e.properties.src.startsWith('blob:')) as any, (node: any) => {
@@ -31,7 +31,7 @@ function imageBlobReferences({getBlobURL}: {getBlobURL?: (hash: string) => strin
   }
 }
 
-function pipeline(getBlobURL?: (hash: string) => string | undefined) {
+function pipeline(getBlobURL?: (id: string) => string | undefined) {
   return unified()
     .use(markdown)
     .use(highlight)
@@ -76,13 +76,13 @@ function pipeline(getBlobURL?: (hash: string) => string | undefined) {
     .use(stringify)
 }
 
-function renderMarkdownToHtml(text: string, getBlobURL?: (hash: string) => string | undefined) {
+function renderMarkdownToHtml(text: string, getBlobURL?: (id: string) => string | undefined) {
   return pipeline(getBlobURL)
     .processSync(text)
     .toString('utf8')
 }
 
-export default function PageText({text, getBlobURL}: {text: string, getBlobURL?: (hash: string) => string | undefined}) {
+export default function PageText({text, getBlobURL}: {text: string, getBlobURL?: (id: string) => string | undefined}) {
   const html = useMemo(() => {
     return renderMarkdownToHtml(text, getBlobURL)
   }, [text, getBlobURL])
