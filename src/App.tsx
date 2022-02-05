@@ -496,8 +496,8 @@ const MetaPages = {
               return
             }
             const existingPages = new Set(Object.keys(doc.pages))
-            const added = Object.keys(json.wiki).filter(k => !existingPages.has(k))
-            const replaced = Object.keys(json.wiki).filter(k => existingPages.has(k))
+            const added = Object.keys(json.wiki.pages).filter(k => !existingPages.has(k))
+            const replaced = Object.keys(json.wiki.pages).filter(k => existingPages.has(k))
             //const blobs = rootDoc.getMap('blobs')
             //const newBlobs = Object.keys(json.blobs).filter(k => !blobs.has(k))
             //console.log(added, replaced, newBlobs)
@@ -512,11 +512,11 @@ const MetaPages = {
               return
             }
             change(doc => {
-              for (const [page, data] of Object.entries<string[]>(json.wiki)) {
+              for (const [page, data] of Object.entries(json.wiki.pages as Record<string, {blocks: {text: string}[]}>)) {
                 const existingPage = doc.pages[page]
-                if (existingPage?.blocks.length === data.length && existingPage?.blocks.every((x, i) => x.toString() === data[i]))
+                if (existingPage?.blocks.length === data.blocks.length && existingPage?.blocks.every((x, i) => x.text.toString() === data.blocks[i].text))
                   continue
-                doc.pages[page] = { blocks: data.map(str => ({ text: new Automerge.Text(str) })) }
+                doc.pages[page] = { blocks: data.blocks.map(str => ({ text: new Automerge.Text(str.text) })) }
               }
             })
             // rootDoc.transact(() => {
