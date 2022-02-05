@@ -30,7 +30,9 @@ const dataPath = path.join(persistenceDir, 'data')
 if (!(await fs.stat(persistenceDir).catch(() => null))) {
   await fs.mkdir(persistenceDir)
 }
-const fh = await fs.open(dataPath, await fs.stat(dataPath).then(() => 'r+', () => 'w+'))
+const stat: fsSync.Stats | null = await fs.stat(dataPath).catch(() => null)
+const fh = await fs.open(dataPath, stat ? 'r+': 'w+')
+console.log('doc size', ((stat ? stat.size : 0) / 1024).toFixed(1) + ' K')
 console.time('loading doc')
 let doc = Automerge.init<any>()
 do {
