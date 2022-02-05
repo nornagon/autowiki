@@ -38,6 +38,7 @@ function pipeline(getBlobURL?: (id: string) => string | undefined) {
     .use(wikiLink, {
       hrefTemplate: (link: string) => `/${link}`,
       pageResolver: (name: string) => [name],
+      aliasDivider: '|',
       wikiLinkClassName: 'wikilink',
     })
     .use(remarkTruncateLinks, { length: 60 })
