@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef, forwardRef, useCallback, useContext } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback, useContext } from 'react';
 import './App.css';
 import Automerge from 'automerge';
 import { opFromInput } from './textarea-op';
@@ -406,7 +406,7 @@ const MetaPages = {
       <h1>All Pages</h1>
       <ul>
         {[...allPages(wiki)].filter(x => x[1].blocks.some(x => x.text.length > 0)).sort((a, b) => a[0].localeCompare(b[0])).map(([title, _page]) => {
-          return <li><a href={`/${title}`} className="wikilink">{title || '/'}</a></li>
+          return <li key={title}><a href={`/${title}`} className="wikilink">{title || '/'}</a></li>
         })}
       </ul>
     </div>
@@ -430,7 +430,7 @@ const MetaPages = {
       <h1>Blobs</h1>
       <ul>
         {[...Object.keys(wiki.blobs ?? {})].map(id => {
-          return <li><img src={getBlobURL(id)} style={{width: 256, height: 256, objectFit: 'cover', display: 'block'}} alt={id}/>{id}</li>
+          return <li key={id}><img src={getBlobURL(id)} style={{width: 256, height: 256, objectFit: 'cover', display: 'block'}} alt={id}/>{id}</li>
         })}
       </ul>
     </div>
@@ -585,7 +585,6 @@ function ReplicationStateIndicator({state, onClick}: {state: Record<string, Repl
 
 function AppWrapper() {
   const [doc, setDoc] = useState<Automerge.Doc<Wiki>>(null as any)
-  console.log(doc)
   useEffect(() => {
     idb.getItem("automerge:wiki").then((data) => {
       setDoc(data ? Automerge.load(data) : Automerge.init())
