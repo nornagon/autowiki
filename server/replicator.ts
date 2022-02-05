@@ -1,50 +1,66 @@
 import express from 'express'
-import bodyParser from 'body-parser'
 import cors from 'cors'
 import * as WebSocket from 'ws'
 import * as uuid from 'uuid';
-import * as fs from 'fs'
+import * as fs from 'fs/promises'
+import * as path from 'path'
+import * as fsSync from 'fs'
 import * as crypto from 'crypto'
-import * as Y from 'yjs'
-import { LeveldbPersistence } from 'y-leveldb'
+import {URL} from 'url'
+import * as Automerge from 'automerge';
 
-// ugh i hate this
-import { setupWSConnection, setPersistence } from 'y-websocket/bin/utils'
+(async () => {
 
 const secret: string = (() => {
-  if (!fs.existsSync('./_secret')) {
+  if (!fsSync.existsSync('./_secret')) {
     const secret: string = uuid.v4()
-    fs.writeFileSync('./_secret', secret)
+    fsSync.writeFileSync('./_secret', secret)
     return secret
   }
-  return fs.readFileSync('./_secret', 'utf8')
+  return fsSync.readFileSync('./_secret', 'utf8')
 })()
 
 const app = express()
-app.use(bodyParser.json())
-app.use(cors())
+app.use(express.json())
+app.use(cors() as any)
 
-const persistenceDir = process.env.AUTOWIKI_PERSISTENCE_DIR ?? "./data-y"
-const ldb = new LeveldbPersistence(persistenceDir)
+const persistenceDir = process.env.AUTOWIKI_PERSISTENCE_DIR ?? "./data-automerge"
+const dataPath = path.join(persistenceDir, 'data')
 
-setPersistence({
-  bindState: async (docName: string, ydoc: Y.Doc) => {
-    const persistedYdoc = await ldb.getYDoc(docName)
-    const newUpdates = Y.encodeStateAsUpdate(ydoc)
-    ldb.storeUpdate(docName, newUpdates)
-    Y.applyUpdate(ydoc, Y.encodeStateAsUpdate(persistedYdoc))
-    ydoc.on('update', (update: any) => {
-      ldb.storeUpdate(docName, update)
+if (!(await fs.stat(persistenceDir).catch(() => null))) {
+  await fs.mkdir(persistenceDir)
+}
+const fh = await fs.open(dataPath, await fs.stat(dataPath).then(() => 'r+', () => 'w+'))
+const changes: Automerge.BinaryChange[] = []
+do {
+  const {buffer, bytesRead} = await fh.read({
+    buffer: Buffer.alloc(4)
+  })
+  if (bytesRead < 4)
+    break
+  const len = buffer.readUInt32LE()
+  {
+    const {buffer, bytesRead} = await fh.read({
+      buffer: Buffer.alloc(len)
     })
-  },
-  writeState: async (docName: string, ydoc: Y.Doc) => {}
-})
+    if (bytesRead === len)
+      changes.push(buffer as Uint8Array as Automerge.BinaryChange)
+    else {
+      console.warn("Corrupted data store? Proceed with caution...")
+      break
+    }
+  }
+} while (true)
+const writeStream = fh.createWriteStream()
+
+let [doc] = Automerge.applyChanges(Automerge.init<any>(), changes)
+console.log(doc)
 
 const server = app.listen(process.env.PORT ?? 3030, () => {
   const {family, address, port} = server.address() as any;
   const addr = `${family === "IPv6" ? `[${address}]` : address}:${port}`;
   console.log(`Server listening on ${addr}`);
-  console.log(`Peer key is ${secret}`)
+  console.log(`Peer key is ${secret}@${addr}`)
 })
 
 const wss = new WebSocket.Server({ noServer: true })
@@ -55,14 +71,45 @@ function isValidSecret(key: string): boolean {
   return crypto.timingSafeEqual(secretBuf, keyBuf)
 }
 
+let peers = new Map<any, Automerge.SyncState>()
+const updatePeers = () => {
+  for (const [ws, syncState] of peers.entries()) {
+    const [newSyncState, msg] = Automerge.generateSyncMessage(doc, syncState)
+    peers.set(ws, newSyncState)
+    if (msg) {
+      ws.send(msg)
+    }
+  }
+}
 server.on('upgrade', (req, socket, head) => {
   const params = new URL('x:' + req.url).searchParams
-  if (!params.has('key') || !isValidSecret(params.get("key"))) {
+  if (!params.has('key') || !isValidSecret(params.get("key")!)) {
     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
     socket.destroy()
     return
   }
   wss.handleUpgrade(req, socket, head, (ws) => {
-    setupWSConnection(ws, null, { docName: 'autowiki', gc: false })
+    peers.set(ws, Automerge.initSyncState())
+    ws.addEventListener('close', () => { peers.delete(ws) })
+    ws.addEventListener('error', () => { peers.delete(ws) }) // do i need both?
+    ws.addEventListener('message', ({data}) => {
+      const [newDoc, newSyncState] = Automerge.receiveSyncMessage(doc, peers.get(ws)!, data as Automerge.BinarySyncMessage)
+      const changes = Automerge.getChanges(doc, newDoc)
+      for (const change of changes) {
+        const lenBuf = Buffer.alloc(4)
+        lenBuf.writeUInt32LE(change.byteLength)
+        writeStream.write(lenBuf)
+        writeStream.write(change)
+      }
+      if (doc !== newDoc)
+        console.log('doc is now', doc)
+      else
+        console.log('doc unchanged')
+      doc = newDoc
+      peers.set(ws, newSyncState)
+      updatePeers()
+    })
   })
 })
+
+})()

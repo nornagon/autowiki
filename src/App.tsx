@@ -23,7 +23,7 @@ type Wiki = {
 
 let changesPending = false
 const save = debounce(function<T>(docId: string, doc: Automerge.Doc<T>)  {
-  idbSetItem(`automerge:${docId}`, Automerge.save(doc))
+  idbSetItem(docId, Automerge.save(doc))
   changesPending = false
 }, 1000)
 window.onbeforeunload = () => changesPending ? true : undefined
@@ -112,48 +112,22 @@ const requestPersistentStorage = (() => {
   }
 })()
 
-type DocHook<T> = [Automerge.FreezeObject<T>, (fn: Automerge.ChangeFn<T>) => void]
+type DocHook<T> = [Automerge.Doc<T>, (fn: Automerge.ChangeFn<T>) => void, (f: (newDoc: Automerge.Doc<T>) => Automerge.Doc<T>) => void]
 
 const WikiDocument = React.createContext<DocHook<Wiki> | null>(null)
 
-function useWikiDocument(): [Automerge.FreezeObject<Wiki>, (fn: Automerge.ChangeFn<Wiki>) => void] {
+function useWiki(): DocHook<Wiki> {
   useEffect(() => { requestPersistentStorage() }, [])
   const doc = useContext(WikiDocument)
   return doc!
 }
 
-
-/*
-function useDocument<T>(id: string, initial: () => Automerge.Doc<T>): [Automerge.FreezeObject<T>, (fn: Automerge.ChangeFn<T>) => void] {
-  useEffect(() => { requestPersistentStorage() }, [])
-  const [doc, setDoc] = useState(initial)
-  useEffect(() => {
-    idbGetItem("automerge:wiki").then((data) => {
-      if (data)
-        setDoc(Automerge.load(data))
-    })
-  }, [])
-  const change = useCallback((fn: Automerge.ChangeFn<T>) => {
-    const newDoc = Automerge.change(doc, fn)
-    setDoc(newDoc)
-    save(id, newDoc)
-    //docSet.setDoc(id, Automerge.change(doc, fn))
-  }, [id, doc])
-  return [doc, change]
-}
-*/
-
-function useWiki(): [Automerge.FreezeObject<Wiki>, (fn: Automerge.ChangeFn<Wiki>) => void] {
-  //return useDocument<Wiki>('wiki', () => Automerge.from({ pages: {} }))
-  return useWikiDocument()
-}
-
 function usePage(title: string): [Automerge.FreezeObject<Page>, (fn: Automerge.ChangeFn<Page>) => void] {
   const [doc, change] = useWiki()
-  const { pages } = doc
-  const page = pages[title] ?? {blocks: [{ text: new Automerge.Text() }]}
+  const page = (doc.pages ? doc.pages[title] : null) ?? {blocks: [{ text: new Automerge.Text() }]}
   const changePage = (f: Automerge.ChangeFn<Page>) => {
     change(doc => {
+      if (!doc.pages) doc.pages = {}
       if (!Object.prototype.hasOwnProperty.call(doc.pages, title)) {
         doc.pages[title] = { blocks: [{text: new Automerge.Text()}] }
       }
@@ -165,7 +139,7 @@ function usePage(title: string): [Automerge.FreezeObject<Page>, (fn: Automerge.C
 
 
 function* allPages(wiki: Wiki): Generator<[string, Page], any, unknown> {
-  for (const k of Object.keys(wiki.pages)) {
+  for (const k of Object.keys(wiki?.pages ?? {})) {
     yield [k, wiki.pages[k]]
   }
 }
@@ -365,7 +339,7 @@ function Page({title}: {title: string}) {
                 changeData(d => {
                   const prev = d.blocks[selected - 1]
                   const prevLength = prev.text.length
-                  prev.text.insertAt!(prev.text.length, d.blocks[selected].toString())
+                  prev.text.insertAt!(prev.text.length, ...d.blocks[selected].text.toString())
                   d.blocks.deleteAt!(selected, 1)
                   requestAnimationFrame(() => {
                     textarea.current?.setSelectionRange(prevLength, prevLength)
@@ -404,7 +378,7 @@ function Page({title}: {title: string}) {
                     d.blocks[selected].text.deleteAt!(start, removed.length)
                   }
                   if (inserted != null) {
-                    d.blocks[selected].text.insertAt!(start, inserted)
+                    d.blocks[selected].text.insertAt!(start, ...inserted)
                   }
                 })
               }
@@ -500,7 +474,7 @@ const MetaPages = {
   */
   export: () => {
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [doc, change] = useWikiDocument()
+    const [doc, change] = useWiki()
     function doImport() {
       const input = document.createElement('input')
       input.setAttribute('type', 'file')
@@ -684,20 +658,19 @@ function ReplicationStateIndicator({state, onClick}: {state: Record<string, Repl
 }
 
 function AppWrapper() {
-  const [doc, setDoc] = useState<Automerge.Doc<Wiki> | null>(null)
+  const [doc, setDoc] = useState<Automerge.Doc<Wiki>>(null as any)
   useEffect(() => {
     idbGetItem("automerge:wiki").then((data) => {
-      if (data)
-        setDoc(Automerge.load(data))
+      setDoc(data ? Automerge.load(data) : Automerge.init())
     })
   }, [])
-  const change = useCallback((fn: Automerge.ChangeFn<Wiki>) => {
-    const newDoc = Automerge.change(doc, fn)
-    setDoc(newDoc)
-    save("automerge:wiki", newDoc!)
-    //docSet.setDoc(id, Automerge.change(doc, fn))
+  useEffect(() => {
+    if (doc != null) save("automerge:wiki", doc)
   }, [doc])
-  return <WikiDocument.Provider value={[doc!, change]}>
+  const change = useCallback((fn: Automerge.ChangeFn<Wiki>) => {
+    setDoc(Automerge.change(doc, fn)!)
+  }, [doc])
+  return <WikiDocument.Provider value={[doc!, change, setDoc]}>
     {doc ? <App/> : 'Loading...'}
   </WikiDocument.Provider>
 }
@@ -725,18 +698,20 @@ function App() {
       window.removeEventListener('click', onClick)
     }
   }, [navigate])
-  const [wiki] = useWiki()
+  const [wiki, , updateDoc] = useWiki()
 
   // TODO: this also depends on the other docs, but for now let's only recalculate it when you navigate.
   const backlinks = useMemo(() => getBlocksLinkingTo(wiki, pageTitle), [pageTitle])
   //if (!synced) return <>Loading...</>
 
   return <>
-    {/*<Replicate doc={rootDoc} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />*/}
-    {pageTitle.startsWith('meta:') ? <MetaPage page={pageTitle} /> : <>
-      <Page key={pageTitle} title={pageTitle} />
-      <Backlinks backlinks={backlinks} />
-    </>}
+    {<Replicate doc={wiki} updateDoc={updateDoc} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />}
+    {pageTitle.startsWith('meta:')
+        ? <MetaPage page={pageTitle} />
+        : <>
+            <Page key={pageTitle} title={pageTitle} />
+            <Backlinks backlinks={backlinks} />
+          </>}
     <ReplicationStateIndicator state={peerState} onClick={() => {
       const newPeerString = prompt("Peers?", peers.join(','))
       if (newPeerString) {
