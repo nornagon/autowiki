@@ -1,5 +1,4 @@
 import * as b64 from 'base64-arraybuffer';
-import * as Y from 'yjs';
 
 type Base64String = string
 type ExportFormatV0 = {
@@ -36,6 +35,7 @@ const staticAssert_lastVersionNumberEqualsLengthOfVersionTransformerArray: Asser
 // TODO: would be awesome if typescript could fill in the value here, as it's singly-occupied. https://www.npmjs.com/package/ts-reflection maybe?
 export const EXPORT_VERSION: LatestExportVersion = 1
 
+/*
 export const serialize = (doc: Y.Doc): LatestExportFormat => {
   return {
     _autowiki: { version: EXPORT_VERSION },
@@ -45,7 +45,9 @@ export const serialize = (doc: Y.Doc): LatestExportFormat => {
     ].map(([k, v]: [string, any]) => [k, {...v, data: b64.encode(v.data)}])),
   }
 }
+*/
 
+  /*
 export const deserialize = (doc: Y.Doc, data: any) => {
   const transformers = IMPORT_TRANSFORMERS.slice(data._autowiki.version)
   const transformedData: LatestExportFormat = transformers.reduce((data, transformer) => transformer(data), data)
@@ -72,6 +74,7 @@ export const deserialize = (doc: Y.Doc, data: any) => {
     }
   })
 }
+*/
 
 export const exportFormatError = (json: any): string | undefined => {
   if (!json._autowiki) {

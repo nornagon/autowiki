@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useMemo, useReducer, useRef, forwardRef, useCallback, useContext } from 'react';
+import React, { useEffect, useState, useMemo, useRef, forwardRef, useCallback, useContext } from 'react';
 import './App.css';
 import Automerge from 'automerge';
 import { opFromInput } from './textarea-op';
 import * as uuid from 'uuid';
 import { Replicate, ReplicationState } from './Replicate';
 import PageText, { extractLinks } from './PageText';
-import { deserialize, exportFormatError, serialize } from './export';
+import { exportFormatError } from './export';
 import { debounce } from 'debounce';
 import * as b64 from 'base64-arraybuffer';
 import * as idb from './idb';
