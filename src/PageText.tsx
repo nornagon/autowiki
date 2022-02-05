@@ -44,7 +44,7 @@ function pipeline(getBlobURL?: (id: string) => string | undefined) {
     .use(remark2rehype, {
       allowDangerousHtml: true,
       handlers: {
-        code(h, node) {
+        code(h, node: any) {
           var value = node.value ? node.value + '\n' : ''
           var lang = node.lang && (node.lang as any).match(/^[^ \t]+(?=[ \t]|$)/)
           var props: any = {}
@@ -60,7 +60,7 @@ function pipeline(getBlobURL?: (id: string) => string | undefined) {
           var value = node.value.replace(/\r?\n|\r/g, ' ')
           return h(node, 'code', {'x-pos': node.position?.start.offset + 1}, [u('text', value)])
         },
-        text(h, node) {
+        text(h, node: any) {
           return h.augment(
             node,
             u('element',
@@ -92,7 +92,7 @@ export default function PageText({text, getBlobURL}: {text: string, getBlobURL?:
 export function extractLinks(text: string): any[] {
   const tree = pipeline().parse(text)
   const links: {href: string}[] = []
-  visit(tree, 'wikiLink', (node) => {
+  visit(tree, 'wikiLink', (node: any) => {
     links.push({href: node.value as string})
   })
   return links
