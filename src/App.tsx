@@ -8,6 +8,7 @@ import PageText, { extractLinks } from './PageText';
 import { deserialize, exportFormatError, serialize } from './export';
 import { debounce } from 'debounce';
 import * as b64 from 'base64-arraybuffer';
+import * as idb from './idb';
 
 const EXPORT_VERSION = 1
 
@@ -31,57 +32,10 @@ type Wiki = {
 
 let changesPending = false
 const save = debounce(function<T>(docId: string, doc: Automerge.Doc<T>)  {
-  idbSetItem(docId, Automerge.save(doc))
+  idb.setItem(docId, Automerge.save(doc))
   changesPending = false
 }, 1000)
 window.onbeforeunload = () => changesPending ? true : undefined
-
-const openDb = (name: string, upgrade: (db: IDBDatabase) => void): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(name)
-    req.onupgradeneeded = () => upgrade(req.result)
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
-  })
-}
-
-const getDb = (() => {
-  const dbs = new Map<string, Promise<IDBDatabase>>()
-  return (name: string, initialize: (db: IDBDatabase) => void) => {
-    if (!dbs.has(name)) {
-      dbs.set(name, openDb(name, initialize))
-    }
-    return dbs.get(name)!
-  }
-})()
-
-const getSimpleDb = (name: string) => {
-  return getDb(name, (db) => {
-    db.createObjectStore("data")
-  })
-}
-
-const idbSetItem = async (key: string, value: any) => {
-  const db = await getSimpleDb("lsish")
-  const tx = db.transaction(["data"], "readwrite")
-  const os = tx.objectStore("data")
-  os.put(value, key)
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = resolve
-    tx.onerror = reject
-  })
-}
-
-const idbGetItem = async (key: string): Promise<any> => {
-  const db = await getSimpleDb("lsish")
-  const tx = db.transaction(["data"], "readonly")
-  const os = tx.objectStore("data")
-  const req = os.get(key)
-  return new Promise((resolve, reject) => {
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = reject
-  })
-}
 
 const useHistory = (): [string, (s: string) => void] => {
   const [pathname, setPathname] = useState(window.location.pathname)
@@ -642,7 +596,7 @@ function AppWrapper() {
   const [doc, setDoc] = useState<Automerge.Doc<Wiki>>(null as any)
   console.log(doc)
   useEffect(() => {
-    idbGetItem("automerge:wiki").then((data) => {
+    idb.getItem("automerge:wiki").then((data) => {
       setDoc(data ? Automerge.load(data) : Automerge.init())
     })
   }, [])
