@@ -324,7 +324,7 @@ function Page({title}: {title: string}) {
         block.text.toString(),
         (tag) => wiki.pages[tag]?.blocks.map(block => block.text.toString()).join("\n\n")
       )
-      return <div className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null} onClick={e => onClickBlock(e, i)}>
+      return <div key={i} className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null} onClick={e => onClickBlock(e, i)}>
         <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(0, 3) ?? ''}</a></div>
         {editing && selected === i
         ? <ExpandingTextArea
@@ -700,9 +700,7 @@ function App() {
   }, [navigate])
   const [wiki, , updateDoc] = useWiki()
 
-  // TODO: this also depends on the other docs, but for now let's only recalculate it when you navigate.
   const backlinks = useMemo(() => getBlocksLinkingTo(wiki, pageTitle), [pageTitle, wiki])
-  //if (!synced) return <>Loading...</>
 
   return <>
     {<Replicate doc={wiki} updateDoc={updateDoc} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />}
