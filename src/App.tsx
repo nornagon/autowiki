@@ -9,6 +9,7 @@ import { exportFormatError } from './export';
 import { debounce } from 'debounce';
 import * as b64 from 'base64-arraybuffer';
 import * as idb from './idb';
+import { ExpandingTextArea } from './ExpandingTextArea';
 
 const EXPORT_VERSION = 1
 
@@ -105,16 +106,6 @@ function* allPages(wiki: Automerge.Doc<Wiki>): Generator<[string, Page], any, un
     yield [k, wiki.pages[k]]
   }
 }
-
-function ExpandingTextAreaUnforwarded(opts: React.DetailedHTMLProps<React.TextareaHTMLAttributes<HTMLTextAreaElement>, HTMLTextAreaElement>, ref: any) {
-  return (
-    <div className="expandingArea">
-      <pre><span>{opts.value}</span><br/></pre>
-      <textarea {...opts} ref={ref}></textarea>
-    </div>
-  )
-}
-const ExpandingTextArea = forwardRef(ExpandingTextAreaUnforwarded)
 
 // http://isthe.com/chongo/tech/comp/fnv/
 // FNV1a:
