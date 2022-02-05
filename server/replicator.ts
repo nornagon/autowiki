@@ -80,6 +80,8 @@ const updatePeers = () => {
     peers.set(ws, newSyncState)
     if (msg) {
       ws.send(msg)
+    } else {
+      ws.send(new Uint8Array())
     }
   }
 }
@@ -95,6 +97,7 @@ server.on('upgrade', (req, socket, head) => {
     ws.addEventListener('close', () => { peers.delete(ws) })
     ws.addEventListener('error', () => { peers.delete(ws) }) // do i need both?
     ws.addEventListener('message', ({data}) => {
+      if ((data as any).byteLength === 0) return
       const [newDoc, newSyncState] = Automerge.receiveSyncMessage(doc, peers.get(ws)!, data as Automerge.BinarySyncMessage)
       const changes = Automerge.getChanges(doc, newDoc)
       for (const change of changes) {
@@ -103,10 +106,6 @@ server.on('upgrade', (req, socket, head) => {
         writeStream.write(lenBuf)
         writeStream.write(change)
       }
-      if (doc !== newDoc)
-        console.log('doc is now', doc)
-      else
-        console.log('doc unchanged')
       doc = newDoc
       peers.set(ws, newSyncState)
       updatePeers()

@@ -13,22 +13,34 @@ function ReplicationPeer<T>({doc, updateDoc, peer, onStateChange}: {doc: Automer
     const ws = new ReconnectingWebSocket(`${protocol}://${host}?key=${key}`)
     ws.binaryType = 'arraybuffer'
     ws.onmessage = (e) => {
+      if (e.data.byteLength === 0) {
+        onStateChange('synced')
+        return
+      }
       const message = new Uint8Array(e.data)
-      console.log('got message', message)
       updateDoc(doc => {
         const [newDoc, newSyncState] = Automerge.receiveSyncMessage(doc, syncState.current, message as BinarySyncMessage)
         const [newNewSyncState, msg] = Automerge.generateSyncMessage(newDoc, newSyncState)
         syncState.current = newNewSyncState
         if (msg) {
           ws.send(msg)
+        } else {
+          ws.send(new Uint8Array())
+          onStateChange('synced')
         }
         return newDoc
       })
     }
     ws.onopen = () => {
+      syncState.current = Automerge.initSyncState()
+      setWs(null) // this is to trigger the effect below which sends initial state
       setWs(ws)
     }
+    ws.onclose = () => {
+      onStateChange('offline')
+    }
     return () => {
+      onStateChange('offline')
       ws.close()
     }
   }, [peer, updateDoc])
@@ -36,7 +48,7 @@ function ReplicationPeer<T>({doc, updateDoc, peer, onStateChange}: {doc: Automer
     const [nextSyncState, msg] = Automerge.generateSyncMessage(doc, syncState.current)
     syncState.current = nextSyncState
     if (msg && ws) {
-      console.log('sending', msg)
+      onStateChange('behind')
       ws.send(msg)
     }
   }, [doc, ws])
