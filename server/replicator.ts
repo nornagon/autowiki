@@ -31,7 +31,8 @@ if (!(await fs.stat(persistenceDir).catch(() => null))) {
   await fs.mkdir(persistenceDir)
 }
 const fh = await fs.open(dataPath, await fs.stat(dataPath).then(() => 'r+', () => 'w+'))
-const changes: Automerge.BinaryChange[] = []
+console.time('loading doc')
+let doc = Automerge.init<any>()
 do {
   const {buffer, bytesRead} = await fh.read({
     buffer: Buffer.alloc(4)
@@ -43,18 +44,17 @@ do {
     const {buffer, bytesRead} = await fh.read({
       buffer: Buffer.alloc(len)
     })
-    if (bytesRead === len)
-      changes.push(buffer as Uint8Array as Automerge.BinaryChange)
-    else {
+    if (bytesRead === len) {
+      const [newDoc] = Automerge.applyChanges(doc, [buffer as Uint8Array as Automerge.BinaryChange])
+      doc = newDoc
+    } else {
       console.warn("Corrupted data store? Proceed with caution...")
       break
     }
   }
 } while (true)
+console.timeEnd('loading doc')
 const writeStream = fh.createWriteStream()
-
-let [doc] = Automerge.applyChanges(Automerge.init<any>(), changes)
-console.log(doc)
 
 const server = app.listen(process.env.PORT ?? 3030, () => {
   const {family, address, port} = server.address() as any;
