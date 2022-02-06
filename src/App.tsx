@@ -121,7 +121,7 @@ function Page({title, currentTarget}: {title: string, currentTarget: string}) {
   const [selected, setSelected] = useState(null as number | null)
   const [editing, setEditing] = useState(false)
   const [wiki, changeWiki] = useWiki()
-  const [data, changeData] = usePage(title)
+  const [data, changeData] = usePage(title || 'meta:root')
   const selectedEl = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
