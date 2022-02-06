@@ -88,7 +88,7 @@ function renderMarkdownToHtml(text: string, getBlobURL?: (id: string) => string 
 export default function PageText({text, getBlobURL}: {text: string, getBlobURL?: (id: string) => string | undefined}) {
   const html = useMemo(() => {
     return renderMarkdownToHtml(text, getBlobURL)
-  }, [text, getBlobURL])
+  }, [text])
   return <div dangerouslySetInnerHTML={ { __html: html } } />
 }
 

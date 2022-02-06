@@ -515,12 +515,18 @@ function Backlinks({backlinks}: {backlinks: LinkInfo[]}) {
 
 type LinkInfo = {page: string, context: string}
 
+const extractLinksCache = new WeakMap<any, any[]>()
 function getBlocksLinkingTo(wiki: Automerge.Doc<Wiki>, pageTitle: string): LinkInfo[] {
   const links: LinkInfo[] = []
   for (const [k, v] of allPages(wiki)) {
     if (k === pageTitle) continue
     for (const block of v.blocks) {
-      for (const link of extractLinks(block.text.toString())) {
+      if (!extractLinksCache.has(block.text)) {
+        const links = extractLinks(block.text.toString())
+        extractLinksCache.set(block.text, links)
+      }
+      const cachedLinks = extractLinksCache.get(block.text)!
+      for (const link of cachedLinks) {
         if (link.href === pageTitle)
           links.push({page: k, context: block.text.toString()})
       }
