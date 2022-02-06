@@ -2,6 +2,7 @@ import React, { useMemo } from "react"
 
 import markdown from 'remark-parse';
 import remark2rehype from 'remark-rehype';
+import remarkGfm from 'remark-gfm';
 import highlight from 'remark-highlight.js';
 import raw from 'rehype-raw';
 import stringify from 'rehype-stringify';
@@ -34,6 +35,7 @@ function imageBlobReferences({getBlobURL}: {getBlobURL?: (id: string) => string 
 function pipeline(getBlobURL?: (id: string) => string | undefined) {
   return unified()
     .use(markdown)
+    .use(remarkGfm)
     .use(highlight)
     .use(wikiLink, {
       hrefTemplate: (link: string) => `/${link}`,
