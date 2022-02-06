@@ -10,6 +10,7 @@ import { debounce } from 'debounce';
 import * as b64 from 'base64-arraybuffer';
 import * as idb from './idb';
 import { ExpandingTextArea } from './ExpandingTextArea';
+import { useHistory } from './useHistory';
 
 const EXPORT_VERSION = 1
 
@@ -37,25 +38,6 @@ const save = debounce(function<T>(docId: string, doc: Automerge.Doc<T>)  {
   changesPending = false
 }, 1000)
 window.onbeforeunload = () => changesPending ? true : undefined
-
-const useHistory = (): [string, (s: string) => void] => {
-  const [pathname, setPathname] = useState(window.location.pathname)
-  function handlePopState() {
-    setPathname(window.location.pathname)
-  }
-  function navigate(href: string) {
-    window.history.pushState(null, '', href)
-    setPathname(window.location.pathname)
-    window.scrollTo(0, 0)
-  }
-  useEffect(() => {
-    window.addEventListener('popstate', handlePopState)
-    return () => {
-      window.removeEventListener('popstate', handlePopState)
-    }
-  }, [])
-  return [pathname, navigate]
-}
 
 const requestPersistentStorage = (() => {
   let persistentStorageRequested = false
