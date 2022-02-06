@@ -50,7 +50,12 @@
   left: -50px;
   font-family: monospace;
   opacity: 0.3;
-  display: none;
+}
+.Page .para .id a:visited {
+  color: #106ba3;
+}
+.Page .para .id a:target {
+  background-color: yellow;
 }
 
 .table {

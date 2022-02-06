@@ -72,7 +72,6 @@ function* allPages(wiki: Automerge.Doc<Wiki>): Generator<[string, Page], any, un
   }
 }
 
-/*
 // http://isthe.com/chongo/tech/comp/fnv/
 // FNV1a:
 // hash = offset_basis
@@ -93,16 +92,10 @@ function fnvHash(bytes: Iterable<number>): number {
   return hash >>> 0
 }
 
-function fnvHashInt32s(int32s: number[]): number {
-  return fnvHash(Uint32Array.from(int32s))
+function mixedId(id: string) {
+  const encoder = new TextEncoder()
+  return id ? fnvHash(encoder.encode(id)) : 0
 }
-*/
-
-/*
-function mixedId(id: Y.ID): number {
-  return id ? fnvHashInt32s([id.client, id.clock]) : 0
-}
-*/
 
 function findNearestParent(node: Node, fn: (n: Element) => boolean): Element | null {
   let e: Element | null = node instanceof Element ? node : node.parentElement
@@ -235,16 +228,24 @@ function Page({title}: {title: string}) {
     }
   }
 
+  useEffect(() => {
+    const hash = window.location.hash
+    if (hash.length > 1) {
+      window.location.hash = ''
+      window.location.hash = hash
+    }
+  }, [window.location.hash])
+
   return <article className="Page">
     <h1>{title}</h1>
     {data.blocks.map((block, i) => {
-      //const idNum = mixedId(text._item?.lastId ?? {client: 0, clock: 0})
-      const id = '' //idNum.toString(16).padStart(8, '0')
+      const automergeId = Automerge.getObjectId(block)
+      const id = mixedId(automergeId).toString(16).padStart(8, '0')
       const expandedText = expandText(
         block.text.toString(),
         (tag) => wiki.pages[tag]?.blocks.map(block => block.text.toString()).join("\n\n")
       )
-      return <div key={i} className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null} onClick={e => onClickBlock(e, i)}>
+      return <div key={automergeId} className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null} onClick={e => onClickBlock(e, i)}>
         <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(0, 3) ?? ''}</a></div>
         {editing && selected === i
         ? <ExpandingTextArea
