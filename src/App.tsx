@@ -11,6 +11,7 @@ import * as b64 from 'base64-arraybuffer';
 import * as idb from './idb';
 import { ExpandingTextArea } from './ExpandingTextArea';
 import { useHistory } from './useHistory';
+import { requestPersistentStorage } from './requestPersistentStorage';
 
 const EXPORT_VERSION = 1
 
@@ -38,24 +39,6 @@ const save = debounce(function<T>(docId: string, doc: Automerge.Doc<T>)  {
   changesPending = false
 }, 1000)
 window.onbeforeunload = () => changesPending ? true : undefined
-
-const requestPersistentStorage = (() => {
-  let persistentStorageRequested = false
-  return async function requestPersistentStorage() {
-    if (!persistentStorageRequested) {
-      persistentStorageRequested = true
-      if (navigator.storage && navigator.storage.persist) {
-        const isPersisted = await navigator.storage.persist()
-        if (!isPersisted) {
-          // TODO: warn the user more clearly
-          console.warn("Navigator declined persistent storage")
-        }
-      } else {
-        console.warn("Navigator does not support persistent storage")
-      }
-    }
-  }
-})()
 
 type DocHook<T> = [Automerge.Doc<T>, (fn: Automerge.ChangeFn<T>) => void, (f: (newDoc: Automerge.Doc<T>) => Automerge.Doc<T>) => void]
 
