@@ -519,7 +519,8 @@ function getBlocksLinkingTo(wiki: Automerge.Doc<Wiki>, pageTitle: string): LinkI
       }
       const cachedLinks = extractLinksCache.get(block.text)!
       for (const link of cachedLinks) {
-        if (link.href === pageTitle)
+        const page = link.href.split(/#/)[0]
+        if (page === pageTitle)
           links.push({page: k, context: block.text.toString()})
       }
     }
