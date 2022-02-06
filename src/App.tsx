@@ -115,7 +115,7 @@ function expandText(text: string, lookup: (tag: string) => string | undefined, b
   })
 }
 
-function Page({title}: {title: string}) {
+function Page({title, currentTarget}: {title: string, currentTarget: string}) {
   const [selected, setSelected] = useState(null as number | null)
   const [editing, setEditing] = useState(false)
   const [wiki, changeWiki] = useWiki()
@@ -238,7 +238,7 @@ function Page({title}: {title: string}) {
         (tag) => wiki.pages[tag]?.blocks.map(block => block.text.toString()).join("\n\n")
       )
       return <div key={automergeId} className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null} onClick={e => onClickBlock(e, i)}>
-        <div className="id"><a id={id} href={`#${id}`} title={id}>{id?.substr(0, 3) ?? ''}</a></div>
+        <div className="id"><a id={id} href={`#${id}`} className={id === currentTarget ? 'css-target' : ''} title={id}>{id?.substr(0, 3) ?? ''}</a></div>
         {editing && selected === i
         ? <ExpandingTextArea
             ref={textarea}
@@ -569,7 +569,7 @@ function AppWrapper() {
 }
 
 function App() {
-  const [pathname, navigate] = useHistory()
+  const [{pathname, hash}, navigate] = useHistory()
   const [peers, setPeers] = useState<string[]>(() => JSON.parse(localStorage.getItem('peers') ?? '[]'))
   const [peerState, setPeerState] = useState<Record<string, ReplicationState>>({})
   const pageTitle = decodeURIComponent(pathname.substr(1))
@@ -600,7 +600,7 @@ function App() {
     {pageTitle.startsWith('meta:')
         ? <MetaPage page={pageTitle} />
         : <>
-            <Page key={pageTitle} title={pageTitle} />
+            <Page key={pageTitle} title={pageTitle} currentTarget={hash.substring(1)} />
             <Backlinks backlinks={backlinks} />
           </>}
     <ReplicationStateIndicator state={peerState} onClick={() => {

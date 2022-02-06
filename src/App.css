@@ -54,7 +54,7 @@
 .Page .para .id a:visited {
   color: #106ba3;
 }
-.Page .para .id a:target {
+.Page .para .id a:target, .Page .para .id a.css-target /* work around https://github.com/whatwg/html/issues/639 */ {
   background-color: yellow;
 }
 
