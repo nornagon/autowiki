@@ -228,14 +228,6 @@ function Page({title}: {title: string}) {
     }
   }
 
-  useEffect(() => {
-    const hash = window.location.hash
-    if (hash.length > 1) {
-      window.location.hash = ''
-      window.location.hash = hash
-    }
-  }, [window.location.hash])
-
   return <article className="Page">
     <h1>{title}</h1>
     {data.blocks.map((block, i) => {
