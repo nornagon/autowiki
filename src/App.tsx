@@ -35,7 +35,9 @@ type Wiki = {
 
 let changesPending = false
 const save = debounce(function<T>(docId: string, doc: Automerge.Doc<T>)  {
+  console.time('save')
   idb.setItem(docId, Automerge.save(doc))
+  console.timeEnd('save')
   changesPending = false
 }, 1000)
 window.onbeforeunload = () => changesPending ? true : undefined
