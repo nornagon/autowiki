@@ -556,7 +556,11 @@ function AppWrapper() {
   const [doc, setDoc] = useState<Automerge.Doc<Wiki>>(null as any)
   useEffect(() => {
     idb.getItem("automerge:wiki").then((data) => {
-      setDoc(data ? Automerge.load(data) : Automerge.init())
+      console.log(data.byteLength)
+      console.time('load')
+      const doc: Automerge.Doc<Wiki> = data ? Automerge.load(data) : Automerge.init()
+      console.timeEnd('load')
+      setDoc(doc)
     })
   }, [])
   useEffect(() => {
