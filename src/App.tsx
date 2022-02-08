@@ -551,13 +551,15 @@ function Backlinks({backlinks}: {backlinks: LinkInfo[]}) {
     <ul>
       {backlinkingPages.map(page => <li key={page}>
         <a href={page ? encodeURIComponent(page) : "/"} className="wikilink">{page || "/"}</a>:
-        <ul>{backlinksByPage.get(page)!.map((l, i) => <li key={i}><PageText text={l.context} /></li>)}</ul>
+        <ul>{backlinksByPage.get(page)!.map((l, i) =>
+          <li key={i}><BlockView block={l.context} changeBlock={() => {}} editing={false} selected={false} /></li>)}
+        </ul>
       </li>)}
     </ul>
   </article>
 }
 
-type LinkInfo = {page: string, context: string}
+type LinkInfo = {page: string, context: Block}
 
 const extractLinksCache = new WeakMap<any, any[]>()
 function getBlocksLinkingTo(wiki: Automerge.Doc<Wiki>, pageTitle: string): LinkInfo[] {
@@ -573,7 +575,7 @@ function getBlocksLinkingTo(wiki: Automerge.Doc<Wiki>, pageTitle: string): LinkI
       for (const link of cachedLinks) {
         const page = link.href.split(/#/)[0]
         if (page === pageTitle)
-          links.push({page: k, context: block.text.toString()})
+          links.push({page: k, context: block})
       }
     }
   }
