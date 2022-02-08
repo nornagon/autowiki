@@ -1,4 +1,4 @@
-import React, { useMemo } from "react"
+import React, { DOMAttributes, useMemo } from "react"
 
 import markdown from 'remark-parse';
 import remark2rehype from 'remark-rehype';
@@ -85,11 +85,11 @@ function renderMarkdownToHtml(text: string, getBlobURL?: (id: string) => string 
     .toString('utf8')
 }
 
-export default function PageText({text, getBlobURL}: {text: string, getBlobURL?: (id: string) => string | undefined}) {
+export default function PageText({text, getBlobURL, ...rest}: {text: string, getBlobURL?: (id: string) => string | undefined} & DOMAttributes<HTMLDivElement>) {
   const html = useMemo(() => {
     return renderMarkdownToHtml(text, getBlobURL)
   }, [text])
-  return <div dangerouslySetInnerHTML={ { __html: html } } />
+  return <div dangerouslySetInnerHTML={ { __html: html } } {...rest} />
 }
 
 export function extractLinks(text: string): any[] {

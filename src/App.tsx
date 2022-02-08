@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef, useCallback, useContext, KeyboardEventHandler, ChangeEvent, forwardRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback, useContext, KeyboardEventHandler, ChangeEvent, forwardRef, Ref } from 'react';
 import './App.css';
 import Automerge from 'automerge';
 import { Op, opFromInput } from './textarea-op';
@@ -191,12 +191,77 @@ const BlockEditor = forwardRef(({block, changeBlock, onKeyDown, onOp}: {
     />
 })
 
+function BlockView({block, changeBlock, textareaRef, editing, selected, onKeyDown, onOp}: {
+  block: Block;
+  changeBlock: (f: (b: Block) => void) => void;
+  textareaRef?: Ref<HTMLTextAreaElement>;
+  editing: boolean;
+  selected: boolean;
+  onKeyDown?: KeyboardEventHandler<HTMLTextAreaElement>;
+  onOp?: (op: Op, event: ChangeEvent<HTMLTextAreaElement>) => boolean | undefined;
+}) {
+  const [wiki] = useWiki()
+  const expandedText = expandText(
+    block.text.toString(),
+    (tag) => wiki.pages[tag]?.blocks.map(block => block.text.toString()).join("\n\n")
+  )
+  return editing && selected
+    ? <BlockEditor
+        ref={textareaRef}
+        block={block}
+        changeBlock={changeBlock}
+        onKeyDown={onKeyDown}
+        onOp={onOp}
+        />
+    : block.text.toString()?.trim()
+    ? <PageText
+        onClick={e => {
+          if (e.target instanceof Element && (findNearestParent(e.target, n => n.nodeName === 'A') || e.target.nodeName === 'SUMMARY')) {
+            e.preventDefault()
+            return
+          }
+          if (e.target instanceof Element && (e.target.nodeName === 'INPUT' || e.defaultPrevented)) {
+            const { nextElementSibling } = e.target
+            if (nextElementSibling && nextElementSibling.hasAttribute('x-pos')) {
+              changeBlock(block => {
+                // TODO: this is a hack, we should encode the source position of the checkbox during parsing
+                const pos = +nextElementSibling.getAttribute('x-pos')! - 3
+                const str = block.text.toString()
+                if (str[pos] === ' ') {
+                  block.text.deleteAt!(pos, 1)
+                  block.text.insertAt!(pos, 'x')
+                } else if (str[pos] === 'x') {
+                  block.text.deleteAt!(pos, 1)
+                  block.text.insertAt!(pos, ' ')
+                }
+              })
+            }
+            e.preventDefault()
+            return
+          }
+        }}
+        text={expandedText}
+        getBlobURL={(id) => {
+          if (!blobURLs.has(id)) {
+            if (Object.hasOwnProperty.call(wiki?.blobs ?? {}, id)) {
+              const blob = wiki.blobs[id]
+              if (blob && typeof blob.data === 'string') {
+                const { data, type } = blob
+                blobURLs.set(id, URL.createObjectURL(new Blob([b64.decode(data)], { type })))
+              }
+            }
+          }
+          return blobURLs.get(id)
+        }} />
+    : <>{'\u00a0'}</>
+}
+
 function Page({title, currentTarget}: {title: string, currentTarget: string}) {
   const [selected, setSelected] = useState(null as number | null)
   const [editing, setEditing] = useState(false)
-  const [wiki] = useWiki()
   const [data, changeData] = usePage(title || 'meta:root')
   const selectedEl = useRef<HTMLDivElement>(null)
+  const textarea = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (selectedEl.current) {
@@ -254,7 +319,6 @@ function Page({title, currentTarget}: {title: string, currentTarget: string}) {
         setEditing(false)
         setSelected(null)
       } else if (!editing && !findNearestParent(e.target as Element, e => e.className === 'Page')) {
-        setEditing(false)
         setSelected(null)
       }
     }
@@ -263,32 +327,10 @@ function Page({title, currentTarget}: {title: string, currentTarget: string}) {
       window.removeEventListener('mousedown', blur)
     }
   }, [editing])
-  const textarea = useRef<HTMLTextAreaElement>(null)
 
   function onClickBlock(e: React.MouseEvent<HTMLDivElement>, i: number) {
-    if (e.target instanceof Element && (e.target.nodeName === 'INPUT' || e.defaultPrevented)) {
-      const { nextElementSibling } = e.target
-      if (nextElementSibling && nextElementSibling.hasAttribute('x-pos')) {
-        changeData(d => {
-          // TODO: this is a hack, we should encode the source position of the checkbox during parsing
-          const block = d.blocks[i]
-          const pos = +nextElementSibling.getAttribute('x-pos')! - 3
-          const str = block.text.toString()
-          if (str[pos] === ' ') {
-            block.text.deleteAt!(pos, 1)
-            block.text.insertAt!(pos, 'x')
-          } else if (str[pos] === 'x') {
-            block.text.deleteAt!(pos, 1)
-            block.text.insertAt!(pos, ' ')
-          }
-        })
-      }
-      e.preventDefault()
+    if (e.defaultPrevented)
       return
-    }
-    if (e.target instanceof Element && (findNearestParent(e.target, n => n.nodeName === 'A') || e.target.nodeName === 'SUMMARY')) {
-      return
-    }
     setSelected(i)
     setEditing(true)
     // anchorNode is the node in which the selection begins. (focusNode is where it ends.)
@@ -309,64 +351,45 @@ function Page({title, currentTarget}: {title: string, currentTarget: string}) {
     {data.blocks.map((block, i) => {
       const automergeId = Automerge.getObjectId(block)
       const id = mixedId(automergeId).toString(16).padStart(8, '0')
-      const expandedText = expandText(
-        block.text.toString(),
-        (tag) => wiki.pages[tag]?.blocks.map(block => block.text.toString()).join("\n\n")
-      )
       return <div key={automergeId} className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null} onClick={e => onClickBlock(e, i)}>
         <div className="id"><a id={id} href={`#${id}`} className={id === currentTarget ? 'css-target' : ''} title={id}>{id?.substr(0, 3) ?? ''}</a></div>
-        {editing && selected === i
-        ? <BlockEditor
-            ref={textarea}
-            block={block}
-            changeBlock={f => changeData(d => f(d.blocks[i]))}
-            onKeyDown={e => {
-              const { currentTarget } = e
-              const { selectionStart, selectionEnd } = currentTarget
-              if (e.key === 'Backspace' && selectionStart === 0 && selectionEnd === 0 && selected > 0) {
-                // merge paras
-                changeData(d => {
-                  const prev = d.blocks[selected - 1]
-                  const prevLength = prev.text.length
-                  prev.text.insertAt!(prev.text.length, ...d.blocks[selected].text.toString())
-                  d.blocks.deleteAt!(selected, 1)
-                  requestAnimationFrame(() => {
-                    textarea.current?.setSelectionRange(prevLength, prevLength)
-                  })
+        <BlockView
+          textareaRef={textarea}
+          editing={editing}
+          selected={selected === i}
+          block={block}
+          changeBlock={f => changeData(d => f(d.blocks[i]))}
+          onKeyDown={e => {
+            const { currentTarget } = e
+            const { selectionStart, selectionEnd } = currentTarget
+            if (e.key === 'Backspace' && selectionStart === 0 && selectionEnd === 0 && selected! > 0) {
+              // merge paras
+              changeData(d => {
+                const prev = d.blocks[selected! - 1]
+                const prevLength = prev.text.length
+                prev.text.insertAt!(prev.text.length, ...d.blocks[selected!].text.toString())
+                d.blocks.deleteAt!(selected!, 1)
+                requestAnimationFrame(() => {
+                  textarea.current?.setSelectionRange(prevLength, prevLength)
                 })
-                setSelected(selected - 1)
-                e.preventDefault()
-                return
-              }
-            }}
-            onOp={(op, e) => {
-              if (op.inserted === '\n' && op.removed == null && e.target.value.substr(op.start - 1, 2) === '\n\n') {
-                changeData(d => {
-                  const str = d.blocks[selected].text.toString().substr(op.start, d.blocks[selected].text.length - op.start + 1)
-                  d.blocks[selected].text.deleteAt!(op.start - 1, d.blocks[selected].text.length - op.start + 1)
-                  d.blocks.insertAt!(selected + 1, {text: new Automerge.Text(str)})
-                })
-                setSelected(selected + 1)
-                return true
-              }
-            }}
-            />
-        : block.text.toString()?.trim()
-        ? <PageText
-            text={expandedText}
-            getBlobURL={(id) => {
-              if (!blobURLs.has(id)) {
-                if (Object.hasOwnProperty.call(wiki?.blobs ?? {}, id)) {
-                  const blob = wiki.blobs[id]
-                  if (blob && typeof blob.data === 'string') {
-                    const { data, type } = blob
-                    blobURLs.set(id, URL.createObjectURL(new Blob([b64.decode(data)], { type })))
-                  }
-                }
-              }
-              return blobURLs.get(id)
-            }} />
-        : '\u00a0'}
+              })
+              setSelected(selected! - 1)
+              e.preventDefault()
+              return
+            }
+          }}
+          onOp={(op, e) => {
+            if (op.inserted === '\n' && op.removed == null && e.target.value.substr(op.start - 1, 2) === '\n\n') {
+              changeData(d => {
+                const str = d.blocks[selected!].text.toString().substr(op.start, d.blocks[selected!].text.length - op.start + 1)
+                d.blocks[selected!].text.deleteAt!(op.start - 1, d.blocks[selected!].text.length - op.start + 1)
+                d.blocks.insertAt!(selected! + 1, {text: new Automerge.Text(str)})
+              })
+              setSelected(selected! + 1)
+              return true // prevent the original op from being applied
+            }
+          }}
+        />
       </div>
     })}
   </article>
