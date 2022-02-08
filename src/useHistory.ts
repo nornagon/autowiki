@@ -15,7 +15,7 @@ export const useHistory = (): [{pathname: string, hash: string}, (s: string) => 
   }, [])
 
   const navigate = useCallback((href: string) => {
-    window.history.pushState(null, '', href)
+    window.history.pushState(null, '', encodeURIComponent(href))
     set({pathname: window.location.pathname, hash: window.location.hash})
     if (window.location.hash.length > 1)
       document.getElementById(window.location.hash.substring(1))?.scrollIntoView()
