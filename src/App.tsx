@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useMemo, useRef, useCallback, useContext } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback, useContext, KeyboardEventHandler, ChangeEvent, forwardRef } from 'react';
 import './App.css';
 import Automerge from 'automerge';
-import { opFromInput } from './textarea-op';
+import { Op, opFromInput } from './textarea-op';
 import * as uuid from 'uuid';
 import { Replicate, ReplicationState } from './Replicate';
 import PageText, { extractLinks } from './PageText';
@@ -117,10 +117,84 @@ function expandText(text: string, lookup: (tag: string) => string | undefined, b
   })
 }
 
+const BlockEditor = forwardRef(({block, changeBlock, onKeyDown, onOp}: {
+  block: Block;
+  changeBlock: (f: (b: Block) => void) => void;
+  onKeyDown?: KeyboardEventHandler<HTMLTextAreaElement>;
+  onOp?: (op: Op, event: ChangeEvent<HTMLTextAreaElement>) => boolean | undefined;
+}, ref: any) => {
+  const [, changeWiki] = useWiki()
+  return <ExpandingTextArea
+    ref={ref}
+    value={block.text.toString()}
+    autoFocus
+    onKeyDown={e => {
+      if (onKeyDown) {
+        onKeyDown(e)
+        if (e.defaultPrevented) return
+      }
+      const { currentTarget } = e
+      const { selectionStart, selectionEnd } = currentTarget
+      if (e.key === '[') {
+        changeBlock(b => {
+          b.text.insertAt!(selectionEnd, ']')
+          b.text.insertAt!(selectionStart, '[')
+        })
+        requestAnimationFrame(() => currentTarget.setSelectionRange(selectionStart + 1, selectionEnd + 1))
+        e.preventDefault()
+      } else if (e.key === ']' && selectionStart === selectionEnd && currentTarget.value[selectionStart] === ']') {
+        e.preventDefault()
+        currentTarget.setSelectionRange(selectionStart + 1, selectionStart + 1)
+      }
+    }}
+    onChange={e => {
+      const op = opFromInput(e.target, block.text?.toString() ?? '')
+      if (op && onOp && onOp(op, e))
+        return
+      if (op) {
+        changeBlock(b => {
+          const {start, removed, inserted} = op
+          if (removed != null) {
+            b.text.deleteAt!(start, removed.length)
+          }
+          if (inserted != null) {
+            b.text.insertAt!(start, ...inserted)
+          }
+        })
+      }
+    }}
+    onPaste={e => {
+      const { currentTarget } = e
+      const { selectionStart, selectionEnd } = currentTarget
+      for (const item of e.clipboardData.items) {
+        const mimeType = item.type
+        if (mimeType.startsWith('image/')) {
+          e.preventDefault()
+          const id = uuid.v4()
+          changeBlock(b => {
+            const { text } = b
+            if (selectionEnd !== selectionStart)
+              text.deleteAt!(selectionStart, selectionEnd - selectionStart)
+            text.insertAt!(selectionStart, ...`![](blob:${id})`)
+          })
+          ;(async () => {
+            const buf = await (item.getAsFile() as any).arrayBuffer()
+            changeWiki(w => {
+              if (!w.blobs) w.blobs = {}
+              w.blobs[id] = { data: b64.encode(buf), type: mimeType }
+            })
+          })()
+          break;
+        }
+      }
+    }}
+    />
+})
+
 function Page({title, currentTarget}: {title: string, currentTarget: string}) {
   const [selected, setSelected] = useState(null as number | null)
   const [editing, setEditing] = useState(false)
-  const [wiki, changeWiki] = useWiki()
+  const [wiki] = useWiki()
   const [data, changeData] = usePage(title || 'meta:root')
   const selectedEl = useRef<HTMLDivElement>(null)
 
@@ -242,10 +316,10 @@ function Page({title, currentTarget}: {title: string, currentTarget: string}) {
       return <div key={automergeId} className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null} onClick={e => onClickBlock(e, i)}>
         <div className="id"><a id={id} href={`#${id}`} className={id === currentTarget ? 'css-target' : ''} title={id}>{id?.substr(0, 3) ?? ''}</a></div>
         {editing && selected === i
-        ? <ExpandingTextArea
+        ? <BlockEditor
             ref={textarea}
-            value={block.text.toString()}
-            autoFocus
+            block={block}
+            changeBlock={f => changeData(d => f(d.blocks[i]))}
             onKeyDown={e => {
               const { currentTarget } = e
               const { selectionStart, selectionEnd } = currentTarget
@@ -261,66 +335,19 @@ function Page({title, currentTarget}: {title: string, currentTarget: string}) {
                   })
                 })
                 setSelected(selected - 1)
-              }
-              if (e.key === '[') {
-                changeData(d => {
-                  d.blocks[selected].text.insertAt!(selectionEnd, ']')
-                  d.blocks[selected].text.insertAt!(selectionStart, '[')
-                })
-                requestAnimationFrame(() => currentTarget.setSelectionRange(selectionStart + 1, selectionEnd + 1))
                 e.preventDefault()
-              } else if (e.key === ']' && selectionStart === selectionEnd && currentTarget.value[selectionStart] === ']') {
-                e.preventDefault()
-                currentTarget.setSelectionRange(selectionStart + 1, selectionStart + 1)
+                return
               }
             }}
-            onChange={e => {
-              const op = opFromInput(e.target, block.text?.toString() ?? '')
-              if (op && op.inserted === '\n' && op.removed == null && e.target.value.substr(op.start - 1, 2) === '\n\n') {
+            onOp={(op, e) => {
+              if (op.inserted === '\n' && op.removed == null && e.target.value.substr(op.start - 1, 2) === '\n\n') {
                 changeData(d => {
-                  //const str = d[selected].toString().substr(op.start);
                   const str = d.blocks[selected].text.toString().substr(op.start, d.blocks[selected].text.length - op.start + 1)
                   d.blocks[selected].text.deleteAt!(op.start - 1, d.blocks[selected].text.length - op.start + 1)
                   d.blocks.insertAt!(selected + 1, {text: new Automerge.Text(str)})
                 })
                 setSelected(selected + 1)
-                return
-              }
-              if (op) {
-                changeData(d => {
-                  const {start, removed, inserted} = op
-                  if (removed != null) {
-                    d.blocks[selected].text.deleteAt!(start, removed.length)
-                  }
-                  if (inserted != null) {
-                    d.blocks[selected].text.insertAt!(start, ...inserted)
-                  }
-                })
-              }
-            }}
-            onPaste={e => {
-              const { currentTarget } = e
-              const { selectionStart, selectionEnd } = currentTarget
-              for (const item of e.clipboardData.items) {
-                const mimeType = item.type
-                if (mimeType.startsWith('image/')) {
-                  e.preventDefault()
-                  const id = uuid.v4()
-                  changeData(d => {
-                    const { text } = d.blocks[selected]
-                    if (selectionEnd !== selectionStart)
-                      text.deleteAt!(selectionStart, selectionEnd - selectionStart)
-                    text.insertAt!(selectionStart, ...`![](blob:${id})`)
-                  })
-                  ;(async () => {
-                    const buf = await (item.getAsFile() as any).arrayBuffer()
-                    changeWiki(w => {
-                      if (!w.blobs) w.blobs = {}
-                      w.blobs[id] = { data: b64.encode(buf), type: mimeType }
-                    })
-                  })()
-                  break;
-                }
+                return true
               }
             }}
             />

@@ -6,7 +6,7 @@ function getInputEnd(element: HTMLTextAreaElement, previous: string, value: stri
   return end;
 };
 
-type Op = {
+export type Op = {
   start: number, inserted?: string, removed?: string
 }
 
