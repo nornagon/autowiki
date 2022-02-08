@@ -628,6 +628,7 @@ function App() {
   const [{pathname, hash}, navigate] = useHistory()
   const [peers, setPeers] = useState<string[]>(() => JSON.parse(localStorage.getItem('peers') ?? '[]'))
   const [peerState, setPeerState] = useState<Record<string, ReplicationState>>({})
+  const [showSwitcher, setShowSwitcher] = useState(false)
   const pageTitle = decodeURIComponent(pathname.substr(1))
   useDocumentTitle(pageTitle)
 
@@ -651,6 +652,18 @@ function App() {
 
   const backlinks = useMemo(() => getBlocksLinkingTo(wiki, pageTitle), [pageTitle, wiki])
 
+  useEffect(() => {
+    const keydown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        setShowSwitcher(d => !d)
+      }
+    }
+    window.addEventListener('keydown', keydown)
+    return () => {
+      window.removeEventListener('keydown', keydown)
+    }
+  }, [])
+
   return <>
     {<Replicate doc={wiki} updateDoc={updateDoc} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />}
     {pageTitle.startsWith('meta:')
@@ -667,7 +680,38 @@ function App() {
         localStorage.setItem('peers', JSON.stringify(newPeers))
       }
     }} />
+    {showSwitcher ? <Switcher dismiss={() => setShowSwitcher(false)} /> : null}
   </>;
+}
+
+function Switcher({dismiss}: {dismiss?: () => void}) {
+  const [wiki] = useWiki()
+  const [search, setSearch] = useState('')
+  const [, navigate] = useHistory()
+  const matches = Object.keys(wiki.pages).filter(x => x.toLowerCase().includes(search.toLowerCase()))
+  useEffect(() => {
+    const l = (e: KeyboardEvent) => {
+      if (e.code === 'Escape') dismiss && dismiss()
+    }
+    window.addEventListener('keydown', l)
+    return () => {
+      window.removeEventListener('keydown', l)
+    }
+  }, [])
+  return <div className="modal-backdrop" onClick={e => {
+    if (e.target === e.currentTarget) {
+      dismiss && dismiss()
+    }
+  }}>
+    <div className="Switcher">
+      <input autoFocus onChange={e => setSearch(e.target.value)} />
+      <ul>
+        {matches.map(m => {
+          return <li><a href={m} onClick={e => { e.preventDefault(); dismiss && dismiss(); navigate(m) }}>{m}</a></li>
+        })}
+      </ul>
+    </div>
+  </div>
 }
 
 export default AppWrapper;
