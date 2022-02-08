@@ -689,7 +689,6 @@ function App() {
 function Switcher({dismiss}: {dismiss?: () => void}) {
   const [wiki] = useWiki()
   const [search, setSearch] = useState('')
-  const [, navigate] = useHistory()
   const matches = Object.keys(wiki.pages).filter(x => x.toLowerCase().includes(search.toLowerCase()))
   useEffect(() => {
     const l = (e: KeyboardEvent) => {
@@ -709,7 +708,7 @@ function Switcher({dismiss}: {dismiss?: () => void}) {
       <input autoFocus onChange={e => setSearch(e.target.value)} />
       <ul>
         {matches.map(m => {
-          return <li><a href={m} onClick={e => { e.preventDefault(); dismiss && dismiss(); navigate(m) }}>{m}</a></li>
+          return <li><a href={m} className="wikilink" onClick={dismiss}>{m}</a></li>
         })}
       </ul>
       {matches.some(x => x === search) ? null : <div>New page: <a href={search} className="wikilink" onClick={dismiss}>{search}</a></div>}
