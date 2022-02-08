@@ -710,6 +710,7 @@ function Switcher({dismiss}: {dismiss?: () => void}) {
           return <li><a href={m} onClick={e => { e.preventDefault(); dismiss && dismiss(); navigate(m) }}>{m}</a></li>
         })}
       </ul>
+      {matches.some(x => x === search) ? null : <div>New page: <a href={search} className="wikilink" onClick={dismiss}>{search}</a></div>}
     </div>
   </div>
 }
