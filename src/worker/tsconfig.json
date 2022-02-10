@@ -1,10 +1,9 @@
 {
   "compilerOptions": {
-    "target": "es6",
+    "target": "es2020",
     "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
+      "esnext",
+      "webworker"
     ],
     "allowJs": true,
     "skipLibCheck": true,
@@ -19,11 +18,5 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react"
-  },
-  "include": [
-    "src"
-  ],
-  "exclude": [
-    "src/worker/"
-  ]
+  }
 }

@@ -6,12 +6,15 @@ import * as uuid from 'uuid';
 import { Replicate, ReplicationState } from './Replicate';
 import PageText, { extractLinks } from './PageText';
 import { exportFormatError } from './export';
-import { debounce } from 'debounce';
 import * as b64 from 'base64-arraybuffer';
-import * as idb from './idb';
 import { ExpandingTextArea } from './ExpandingTextArea';
 import { useHistory } from './useHistory';
 import { requestPersistentStorage } from './requestPersistentStorage';
+import { DB } from './db'
+
+const sharedWorker = new SharedWorker(new URL('./worker', import.meta.url))
+
+const db = new DB('autowiki')
 
 const EXPORT_VERSION = 1
 
@@ -32,15 +35,6 @@ type Wiki = {
   pages: Record<string, Page>;
   blobs: Record<string, Blob>;
 }
-
-let changesPending = false
-const save = debounce(function<T>(docId: string, doc: Automerge.Doc<T>)  {
-  console.time('save')
-  idb.setItem(docId, Automerge.save(doc))
-  console.timeEnd('save')
-  changesPending = false
-}, 1000)
-window.onbeforeunload = () => changesPending ? true : undefined
 
 type DocHook<T> = [Automerge.Doc<T>, (fn: Automerge.ChangeFn<T>) => void, (f: (newDoc: Automerge.Doc<T>) => Automerge.Doc<T>) => void]
 
@@ -606,18 +600,37 @@ function ReplicationStateIndicator({state, onClick}: {state: Record<string, Repl
 
 function AppWrapper() {
   const [doc, setDoc] = useState<Automerge.Doc<Wiki>>(null as any)
+  const docId = 'default'
   useEffect(() => {
-    idb.getItem("automerge:wiki").then((data) => {
-      console.log(data.byteLength)
-      console.time('load')
-      const doc: Automerge.Doc<Wiki> = data ? Automerge.load(data) : Automerge.init()
+    let cancel = false
+    console.time('load')
+    db.getDoc(docId).then(({serializedDoc, changes}) => {
+      if (cancel) return
       console.timeEnd('load')
-      setDoc(doc)
+      console.time('apply')
+      let active = false
+      const options: Automerge.InitOptions<Wiki> = {
+        patchCallback: async (_diff, _before, _after, _local, changes) => {
+          if (!active) return
+          console.time('save')
+          for (const change of changes) {
+            const { hash } = Automerge.decodeChange(change)
+            await db.storeChange(docId, hash!, change)
+          }
+          console.timeEnd('save')
+          sharedWorker.port.postMessage({docId})
+        }
+      }
+      const [doc,] = Automerge.applyChanges(
+        serializedDoc ? Automerge.load(serializedDoc, options) : Automerge.init(options),
+        changes
+      )
+      console.timeEnd('apply')
+      active = true
+      setDoc(doc as Automerge.Doc<Wiki>)
     })
+    return () => { cancel = true }
   }, [])
-  useEffect(() => {
-    if (doc != null) save("automerge:wiki", doc)
-  }, [doc])
   const change = useCallback((fn: Automerge.ChangeFn<Wiki>) => {
     setDoc(doc => Automerge.change(doc, fn)!)
   }, [])
@@ -631,7 +644,7 @@ function App() {
   const [peers, setPeers] = useState<string[]>(() => JSON.parse(localStorage.getItem('peers') ?? '[]'))
   const [peerState, setPeerState] = useState<Record<string, ReplicationState>>({})
   const [showSwitcher, setShowSwitcher] = useState(false)
-  const pageTitle = decodeURIComponent(pathname.substr(1))
+  const pageTitle = decodeURIComponent(pathname.substring(1))
   useDocumentTitle(pageTitle)
 
   useEffect(() => {
