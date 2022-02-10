@@ -10,7 +10,7 @@ function ReplicationPeer<T>({doc, updateDoc, peer, onStateChange}: {doc: Automer
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const [, key, host] = /^(?:([^@]+)@)?(.+)$/.exec(peer)!
-    const ws = new ReconnectingWebSocket(`${protocol}://${host}?key=${key}`)
+    const ws = new ReconnectingWebSocket(`${protocol}://${host}?key=${key}`, [], {maxEnqueuedMessages: 0})
     ws.binaryType = 'arraybuffer'
     ws.onmessage = (e) => {
       if (e.data.byteLength === 0) {
