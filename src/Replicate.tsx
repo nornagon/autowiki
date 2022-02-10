@@ -9,7 +9,8 @@ function ReplicationPeer<T>({doc, updateDoc, peer, onStateChange}: {doc: Automer
   const [ws, setWs] = useState<ReconnectingWebSocket | null>(null)
   useEffect(() => {
     const [, key, host] = /^(?:([^@]+)@)?(.+)$/.exec(peer)!
-    const isLocal = host === '127.0.0.1' || host === 'localhost' || host === '[::]'
+    const {hostname} = new URL(`http://${host}`)
+    const isLocal = hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '[::]'
     const protocol = window.location.protocol === 'https:' && !isLocal ? 'wss' : 'ws'
     const ws = new ReconnectingWebSocket(`${protocol}://${host}?key=${key}`, [], {maxEnqueuedMessages: 0})
     ws.binaryType = 'arraybuffer'
