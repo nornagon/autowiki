@@ -724,7 +724,7 @@ function Switcher({dismiss}: {dismiss?: () => void}) {
           return <li><a href={m} className="wikilink" onClick={dismiss}>{m}</a></li>
         })}
       </ul>
-      {search.trim().length === 0 || matches.some(x => x === search) ? null : <div>New page: <a href={search.trim()} className="wikilink" onClick={dismiss}>{search.trim()}</a></div>}
+      {search.trim().length === 0 || matches.some(x => x === search) ? null : <div>New page: <a href={'/' + encodeURIComponent(search.trim())} className="wikilink" onClick={dismiss}>{search.trim()}</a></div>}
     </div>
   </div>
 }
