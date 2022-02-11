@@ -1,4 +1,4 @@
-import React, { DOMAttributes, useMemo } from "react"
+import React, { DOMAttributes, useLayoutEffect, useMemo, useRef } from "react"
 
 import markdown from 'remark-parse';
 import remark2rehype from 'remark-rehype';
@@ -89,7 +89,16 @@ export default function PageText({text, getBlobURL, ...rest}: {text: string, get
   const html = useMemo(() => {
     return renderMarkdownToHtml(text, getBlobURL)
   }, [text])
-  return <div dangerouslySetInnerHTML={ { __html: html } } {...rest} />
+  const ref = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    ref.current?.querySelectorAll('script').forEach(s => {
+      const parent = s.parentNode!
+      const newS = document.createElement('script')
+      newS.textContent = s.textContent
+      parent.replaceChild(newS, s)
+    })
+  }, [text])
+  return <div ref={ref} dangerouslySetInnerHTML={ { __html: html } } {...rest} />
 }
 
 export function extractLinks(text: string): any[] {
