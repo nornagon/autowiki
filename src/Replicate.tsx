@@ -47,11 +47,13 @@ function ReplicationPeer<T>({doc, updateDoc, peer, onStateChange}: {doc: Automer
     }
   }, [peer, updateDoc])
   useEffect(() => {
-    const [nextSyncState, msg] = Automerge.generateSyncMessage(doc, syncState.current)
-    syncState.current = nextSyncState
-    if (msg && ws) {
-      onStateChange('behind')
-      ws.send(msg)
+    if (ws?.readyState === WebSocket.OPEN) {
+      const [nextSyncState, msg] = Automerge.generateSyncMessage(doc, syncState.current)
+      syncState.current = nextSyncState
+      if (msg) {
+        onStateChange('behind')
+        ws.send(msg)
+      }
     }
   }, [doc, ws])
 
