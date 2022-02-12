@@ -721,7 +721,7 @@ function Switcher({dismiss}: {dismiss?: () => void}) {
       <input autoFocus onChange={e => setSearch(e.target.value)} />
       <ul>
         {matches.map(m => {
-          return <li><a href={m} className="wikilink" onClick={dismiss}>{m}</a></li>
+          return <li><a href={encodeURIComponent(m)} className="wikilink" onClick={dismiss}>{m}</a></li>
         })}
       </ul>
       {search.trim().length === 0 || matches.some(x => x === search) ? null : <div>New page: <a href={'/' + encodeURIComponent(search.trim())} className="wikilink" onClick={dismiss}>{search.trim()}</a></div>}
