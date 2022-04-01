@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react'
-import Automerge, {BinarySyncMessage} from 'automerge';
+import Automerge, {BinarySyncMessage} from 'automerge-js';
 import ReconnectingWebSocket from 'reconnecting-websocket';
 
 export type ReplicationState = 'offline' | 'synced' | 'behind'
@@ -16,7 +16,7 @@ function ReplicationPeer<T>({doc, updateDoc, peer, onStateChange}: {doc: Automer
     ws.binaryType = 'arraybuffer'
     ws.onmessage = (e) => {
       if (e.data.byteLength === 0) {
-        onStateChange('synced')
+        //onStateChange('synced')
         return
       }
       const message = new Uint8Array(e.data)
@@ -30,7 +30,7 @@ function ReplicationPeer<T>({doc, updateDoc, peer, onStateChange}: {doc: Automer
           ws.send(msg)
         } else {
           ws.send(new Uint8Array())
-          onStateChange('synced')
+          //onStateChange('synced')
         }
         return newDoc
       })
@@ -41,10 +41,10 @@ function ReplicationPeer<T>({doc, updateDoc, peer, onStateChange}: {doc: Automer
       setWs(ws)
     }
     ws.onclose = () => {
-      onStateChange('offline')
+      //onStateChange('offline')
     }
     return () => {
-      onStateChange('offline')
+      //onStateChange('offline')
       ws.close()
     }
   }, [peer, updateDoc])
@@ -55,7 +55,7 @@ function ReplicationPeer<T>({doc, updateDoc, peer, onStateChange}: {doc: Automer
       console.timeEnd('generateSyncMessage')
       syncState.current = nextSyncState
       if (msg) {
-        onStateChange('behind')
+        //onStateChange('behind')
         ws.send(msg)
       }
     }

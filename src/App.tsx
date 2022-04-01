@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback, useContext, KeyboardEventHandler, ChangeEvent, forwardRef, Ref } from 'react';
 import './App.css';
-import Automerge from 'automerge';
+//import Automerge from 'automerge';
 import { Op, opFromInput } from './textarea-op';
 import * as uuid from 'uuid';
 import { Replicate, ReplicationState } from './Replicate';
@@ -10,6 +10,8 @@ import * as b64 from 'base64-arraybuffer';
 import { ExpandingTextArea } from './ExpandingTextArea';
 import { useHistory } from './useHistory';
 import { requestPersistentStorage } from './requestPersistentStorage';
+//import * as Automerge2 from 'automerge-wasm';
+import * as Automerge from 'automerge-js';
 import { DB } from './db'
 
 const sharedWorker = new SharedWorker(new URL('./worker', import.meta.url))
@@ -118,9 +120,10 @@ const BlockEditor = forwardRef(({ block, changeBlock, onKeyDown, onOp }: {
   onOp?: (op: Op, event: ChangeEvent<HTMLTextAreaElement>) => boolean | undefined;
 }, ref: any) => {
   const [, changeWiki] = useWiki()
+  const text = block.text?.toString() ?? ''
   return <ExpandingTextArea
     ref={ref}
-    value={block.text.toString()}
+    value={text}
     autoFocus
     onKeyDown={e => {
       if (onKeyDown) {
@@ -142,7 +145,7 @@ const BlockEditor = forwardRef(({ block, changeBlock, onKeyDown, onOp }: {
       }
     }}
     onChange={e => {
-      const op = opFromInput(e.target, block.text?.toString() ?? '')
+      const op = opFromInput(e.target, text)
       if (op && onOp && onOp(op, e))
         return
       if (op) {
@@ -195,8 +198,9 @@ function BlockView({ block, changeBlock, textareaRef, editing, selected, onKeyDo
   onOp?: (op: Op, event: ChangeEvent<HTMLTextAreaElement>) => boolean | undefined;
 }) {
   const [wiki] = useWiki()
+  const str = block.text.toString()
   const expandedText = expandText(
-    block.text.toString(),
+    str,
     (tag) => wiki.pages[tag]?.blocks.map(block => block.text.toString()).join("\n\n")
   )
   return editing && selected
@@ -207,7 +211,7 @@ function BlockView({ block, changeBlock, textareaRef, editing, selected, onKeyDo
       onKeyDown={onKeyDown}
       onOp={onOp}
     />
-    : block.text.toString()?.trim()
+    : str?.trim()
       ? <PageText
         onClick={e => {
           if (e.target instanceof Element && findNearestParent(e.target, n => ['A', 'SUMMARY'].includes(n.nodeName))) {
@@ -605,6 +609,7 @@ function ReplicationStateIndicator({ state, onClick }: { state: Record<string, R
 
 function AppWrapper() {
   const [doc, setDoc] = useState<Automerge.Doc<Wiki>>(null as any)
+  //const [doc, setDoc] = useState<Automerge.Doc<Wiki>>(null as any)
   const docId = 'default'
   useEffect(() => {
     let cancel = false
@@ -612,6 +617,7 @@ function AppWrapper() {
     db.getDoc(docId).then(({ serializedDoc, changes }) => {
       if (cancel) return
       console.timeEnd('load')
+      if (cancel) return
       console.time('apply')
       let active = false
       const options: Automerge.InitOptions<Wiki> = {
@@ -627,7 +633,7 @@ function AppWrapper() {
         }
       }
       const [doc,] = Automerge.applyChanges(
-        serializedDoc ? Automerge.load(serializedDoc, options) : Automerge.init(options),
+        serializedDoc ? Automerge.load(serializedDoc/*, options*/) : Automerge.init(options),
         changes
       )
       console.timeEnd('apply')
