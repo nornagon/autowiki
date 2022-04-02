@@ -22,7 +22,9 @@ function ReplicationPeer<T>({doc, updateDoc, peer, onStateChange}: {doc: Automer
       const message = new Uint8Array(e.data)
       updateDoc(doc => {
         const [newDoc, newSyncState] = Automerge.receiveSyncMessage(doc, syncState.current, message as BinarySyncMessage)
+        console.time('generateSyncMessage')
         const [newNewSyncState, msg] = Automerge.generateSyncMessage(newDoc, newSyncState)
+        console.timeEnd('generateSyncMessage')
         syncState.current = newNewSyncState
         if (msg) {
           ws.send(msg)
@@ -48,7 +50,9 @@ function ReplicationPeer<T>({doc, updateDoc, peer, onStateChange}: {doc: Automer
   }, [peer, updateDoc])
   useEffect(() => {
     if (ws?.readyState === WebSocket.OPEN) {
+      console.time('generateSyncMessage')
       const [nextSyncState, msg] = Automerge.generateSyncMessage(doc, syncState.current)
+      console.timeEnd('generateSyncMessage')
       syncState.current = nextSyncState
       if (msg) {
         onStateChange('behind')
