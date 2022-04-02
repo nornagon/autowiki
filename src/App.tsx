@@ -210,8 +210,8 @@ function BlockView({block, changeBlock, textareaRef, editing, selected, onKeyDow
     : block.text.toString()?.trim()
     ? <PageText
         onClick={e => {
-          if (e.target instanceof Element && (findNearestParent(e.target, n => n.nodeName === 'A') || e.target.nodeName === 'SUMMARY')) {
-            e.preventDefault()
+          if (e.target instanceof Element && findNearestParent(e.target, n => ['A', 'SUMMARY'].includes(n.nodeName))) {
+            (e as any).noSelect = true
             return
           }
           if (e.target instanceof Element && (e.target.nodeName === 'INPUT' || e.defaultPrevented)) {
@@ -323,7 +323,7 @@ function Page({title, currentTarget}: {title: string, currentTarget: string}) {
   }, [editing])
 
   function onClickBlock(e: React.MouseEvent<HTMLDivElement>, i: number) {
-    if (e.defaultPrevented)
+    if ((e as any).noSelect)
       return
     setSelected(i)
     setEditing(true)
