@@ -48,12 +48,12 @@ function useWiki(): DocHook<Wiki> {
 
 function usePage(title: string): [Automerge.FreezeObject<Page>, (fn: Automerge.ChangeFn<Page>) => void] {
   const [doc, change] = useWiki()
-  const page = (doc.pages ? doc.pages[title] : null) ?? {blocks: [{ text: new Automerge.Text() }]}
+  const page = (doc.pages ? doc.pages[title] : null) ?? { blocks: [{ text: new Automerge.Text() }] }
   const changePage = (f: Automerge.ChangeFn<Page>) => {
     change(doc => {
       if (!doc.pages) doc.pages = {}
       if (!Object.prototype.hasOwnProperty.call(doc.pages, title)) {
-        doc.pages[title] = { blocks: [{text: new Automerge.Text()}] }
+        doc.pages[title] = { blocks: [{ text: new Automerge.Text() }] }
       }
       f(doc.pages[title])
     })
@@ -111,7 +111,7 @@ function expandText(text: string, lookup: (tag: string) => string | undefined, b
   })
 }
 
-const BlockEditor = forwardRef(({block, changeBlock, onKeyDown, onOp}: {
+const BlockEditor = forwardRef(({ block, changeBlock, onKeyDown, onOp }: {
   block: Block;
   changeBlock: (f: (b: Block) => void) => void;
   onKeyDown?: KeyboardEventHandler<HTMLTextAreaElement>;
@@ -147,7 +147,7 @@ const BlockEditor = forwardRef(({block, changeBlock, onKeyDown, onOp}: {
         return
       if (op) {
         changeBlock(b => {
-          const {start, removed, inserted} = op
+          const { start, removed, inserted } = op
           if (removed != null) {
             b.text.deleteAt!(start, removed.length)
           }
@@ -170,8 +170,8 @@ const BlockEditor = forwardRef(({block, changeBlock, onKeyDown, onOp}: {
             if (selectionEnd !== selectionStart)
               text.deleteAt!(selectionStart, selectionEnd - selectionStart)
             text.insertAt!(selectionStart, ...`![](blob:${id})`)
-          })
-          ;(async () => {
+          });
+          (async () => {
             const buf = await (item.getAsFile() as any).arrayBuffer()
             changeWiki(w => {
               if (!w.blobs) w.blobs = {}
@@ -182,10 +182,10 @@ const BlockEditor = forwardRef(({block, changeBlock, onKeyDown, onOp}: {
         }
       }
     }}
-    />
+  />
 })
 
-function BlockView({block, changeBlock, textareaRef, editing, selected, onKeyDown, onOp}: {
+function BlockView({ block, changeBlock, textareaRef, editing, selected, onKeyDown, onOp }: {
   block: Block;
   changeBlock: (f: (b: Block) => void) => void;
   textareaRef?: Ref<HTMLTextAreaElement>;
@@ -201,14 +201,14 @@ function BlockView({block, changeBlock, textareaRef, editing, selected, onKeyDow
   )
   return editing && selected
     ? <BlockEditor
-        ref={textareaRef}
-        block={block}
-        changeBlock={changeBlock}
-        onKeyDown={onKeyDown}
-        onOp={onOp}
-        />
+      ref={textareaRef}
+      block={block}
+      changeBlock={changeBlock}
+      onKeyDown={onKeyDown}
+      onOp={onOp}
+    />
     : block.text.toString()?.trim()
-    ? <PageText
+      ? <PageText
         onClick={e => {
           if (e.target instanceof Element && findNearestParent(e.target, n => ['A', 'SUMMARY'].includes(n.nodeName))) {
             (e as any).noSelect = true
@@ -247,10 +247,10 @@ function BlockView({block, changeBlock, textareaRef, editing, selected, onKeyDow
           }
           return blobURLs.get(id)
         }} />
-    : <>{'\u00a0'}</>
+      : <>{'\u00a0'}</>
 }
 
-function Page({title, currentTarget}: {title: string, currentTarget: string}) {
+function Page({ title, currentTarget }: { title: string, currentTarget: string }) {
   const [selected, setSelected] = useState(null as number | null)
   const [editing, setEditing] = useState(false)
   const [data, changeData] = usePage(title || 'meta:root')
@@ -259,7 +259,7 @@ function Page({title, currentTarget}: {title: string, currentTarget: string}) {
 
   useEffect(() => {
     if (selectedEl.current) {
-      selectedEl.current.scrollIntoView({block: "nearest"})
+      selectedEl.current.scrollIntoView({ block: "nearest" })
     }
   }, [selected])
 
@@ -345,7 +345,12 @@ function Page({title, currentTarget}: {title: string, currentTarget: string}) {
     {data.blocks.map((block, i) => {
       const automergeId = Automerge.getObjectId(block)
       const id = mixedId(automergeId).toString(16).padStart(8, '0')
-      return <div key={automergeId} className={`para ${selected === i ? "selected" : ""}`} ref={selected === i ? selectedEl : null} onClick={e => onClickBlock(e, i)}>
+      return <div
+        key={automergeId}
+        className={`para ${selected === i ? "selected" : ""}`}
+        ref={selected === i ? selectedEl : null}
+        onClick={e => onClickBlock(e, i)}
+      >
         <div className="id"><a id={id} href={`#${id}`} className={id === currentTarget ? 'css-target' : ''} title={id}>{id?.substr(0, 3) ?? ''}</a></div>
         <BlockView
           textareaRef={textarea}
@@ -377,7 +382,7 @@ function Page({title, currentTarget}: {title: string, currentTarget: string}) {
               changeData(d => {
                 const str = d.blocks[selected!].text.toString().substr(op.start, d.blocks[selected!].text.length - op.start + 1)
                 d.blocks[selected!].text.deleteAt!(op.start - 1, d.blocks[selected!].text.length - op.start + 1)
-                d.blocks.insertAt!(selected! + 1, {text: new Automerge.Text(str)})
+                d.blocks.insertAt!(selected! + 1, { text: new Automerge.Text(str) })
               })
               setSelected(selected! + 1)
               return true // prevent the original op from being applied
@@ -394,7 +399,7 @@ function isValidMetaPage(x: any): x is keyof typeof MetaPages {
   return Object.prototype.hasOwnProperty.call(MetaPages, x)
 }
 
-function MetaPage({page, ...rest}: {page: string}) {
+function MetaPage({ page, ...rest }: { page: string }) {
   const [, meta] = /^meta:(.+)$/.exec(page) ?? []
   if (isValidMetaPage(meta)) {
     const Page = MetaPages[meta]
@@ -436,7 +441,7 @@ const MetaPages = {
       <h1>Blobs</h1>
       <ul>
         {[...Object.keys(wiki.blobs ?? {})].map(id => {
-          return <li key={id}><img src={getBlobURL(id)} style={{width: 256, height: 256, objectFit: 'cover', display: 'block'}} alt={id}/>{id}</li>
+          return <li key={id}><img src={getBlobURL(id)} style={{ width: 256, height: 256, objectFit: 'cover', display: 'block' }} alt={id} />{id}</li>
         })}
       </ul>
     </div>
@@ -471,18 +476,18 @@ const MetaPages = {
             const newBlobs = Object.keys(json.wiki.blobs).filter(k => !blobs.has(k))
             console.log(added, replaced, newBlobs)
             const warn = [
-              {name: 'new page', values: added},
-              {name: 'replaced page', values: replaced},
-              {name: 'new blob', values: newBlobs}
+              { name: 'new page', values: added },
+              { name: 'replaced page', values: replaced },
+              { name: 'new blob', values: newBlobs }
             ]
-            const warnStr = `This import contains ${warn.map(({name, values}) => `${values.length} ${name}${values.length === 1 ? '' : 's'}`).join(', ')}. Go ahead?`
+            const warnStr = `This import contains ${warn.map(({ name, values }) => `${values.length} ${name}${values.length === 1 ? '' : 's'}`).join(', ')}. Go ahead?`
             if (!window.confirm(warnStr)) {
               alert('Import cancelled.')
               return
             }
             change(doc => {
               if (!doc.pages) doc.pages = {}
-              for (const [page, data] of Object.entries(json.wiki.pages as Record<string, {blocks: {text: string}[]}>)) {
+              for (const [page, data] of Object.entries(json.wiki.pages as Record<string, { blocks: { text: string }[] }>)) {
                 const existingPage = doc.pages[page]
                 if (existingPage?.blocks.length === data.blocks.length && existingPage?.blocks.every((x, i) => x.text.toString() === data.blocks[i].text))
                   continue
@@ -508,7 +513,7 @@ const MetaPages = {
         wiki: doc,
       }
       const exportData = JSON.stringify(exportObj)
-      const blobURL = URL.createObjectURL(new Blob([exportData], {type: 'application/json'}))
+      const blobURL = URL.createObjectURL(new Blob([exportData], { type: 'application/json' }))
       a.setAttribute('href', blobURL)
       a.click()
       setTimeout(() => {
@@ -527,7 +532,7 @@ const MetaPages = {
   }
 }
 
-function Backlinks({backlinks}: {backlinks: LinkInfo[]}) {
+function Backlinks({ backlinks }: { backlinks: LinkInfo[] }) {
   const backlinksByPage = useMemo(() => {
     const backlinksByPage = new Map<string, LinkInfo[]>()
     for (const l of backlinks) {
@@ -546,14 +551,14 @@ function Backlinks({backlinks}: {backlinks: LinkInfo[]}) {
       {backlinkingPages.map(page => <li key={page}>
         <a href={page ? encodeURIComponent(page) : "/"} className="wikilink">{page || "/"}</a>:
         <ul>{backlinksByPage.get(page)!.map((l, i) =>
-          <li key={i}><BlockView block={l.context} changeBlock={() => {}} editing={false} selected={false} /></li>)}
+          <li key={i}><BlockView block={l.context} changeBlock={() => { }} editing={false} selected={false} /></li>)}
         </ul>
       </li>)}
     </ul>
   </article>
 }
 
-type LinkInfo = {page: string, context: Block}
+type LinkInfo = { page: string, context: Block }
 
 const extractLinksCache = new WeakMap<any, any[]>()
 function getBlocksLinkingTo(wiki: Automerge.Doc<Wiki>, pageTitle: string): LinkInfo[] {
@@ -569,7 +574,7 @@ function getBlocksLinkingTo(wiki: Automerge.Doc<Wiki>, pageTitle: string): LinkI
       for (const link of cachedLinks) {
         const page = link.href.split(/#/)[0]
         if (page === pageTitle)
-          links.push({page: k, context: block})
+          links.push({ page: k, context: block })
       }
     }
   }
@@ -582,7 +587,7 @@ function useDocumentTitle(title: string) {
   }, [title])
 }
 
-function ReplicationStateIndicator({state, onClick}: {state: Record<string, ReplicationState>, onClick?: React.MouseEventHandler<HTMLDivElement>}) {
+function ReplicationStateIndicator({ state, onClick }: { state: Record<string, ReplicationState>, onClick?: React.MouseEventHandler<HTMLDivElement> }) {
   const aggregateState = Object.values(state).reduce((m, o) => {
     if (m === 'offline') {
       return o !== 'offline' ? o : m
@@ -604,7 +609,7 @@ function AppWrapper() {
   useEffect(() => {
     let cancel = false
     console.time('load')
-    db.getDoc(docId).then(({serializedDoc, changes}) => {
+    db.getDoc(docId).then(({ serializedDoc, changes }) => {
       if (cancel) return
       console.timeEnd('load')
       console.time('apply')
@@ -618,7 +623,7 @@ function AppWrapper() {
             await db.storeChange(docId, hash!, change)
           }
           console.timeEnd('save')
-          sharedWorker.port.postMessage({docId})
+          sharedWorker.port.postMessage({ docId })
         }
       }
       const [doc,] = Automerge.applyChanges(
@@ -635,12 +640,12 @@ function AppWrapper() {
     setDoc(doc => Automerge.change(doc, fn)!)
   }, [])
   return <WikiDocument.Provider value={[doc!, change, setDoc]}>
-    {doc ? <App/> : 'Loading...'}
+    {doc ? <App /> : 'Loading...'}
   </WikiDocument.Provider>
 }
 
 function App() {
-  const [{pathname, hash}, navigate] = useHistory()
+  const [{ pathname, hash }, navigate] = useHistory()
   const [peers, setPeers] = useState<string[]>(() => JSON.parse(localStorage.getItem('peers') ?? '[]'))
   const [peerState, setPeerState] = useState<Record<string, ReplicationState>>({})
   const [showSwitcher, setShowSwitcher] = useState(false)
@@ -680,13 +685,13 @@ function App() {
   }, [])
 
   return <>
-    {<Replicate doc={wiki} updateDoc={updateDoc} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({...s, [peer]: state})) }} />}
+    {<Replicate doc={wiki} updateDoc={updateDoc} peers={peers} onStateChange={(peer, state) => { setPeerState(s => ({ ...s, [peer]: state })) }} />}
     {pageTitle.startsWith('meta:')
-        ? <MetaPage page={pageTitle} />
-        : <>
-            <Page key={pageTitle} title={pageTitle} currentTarget={hash.substring(1)} />
-            <Backlinks backlinks={backlinks} />
-          </>}
+      ? <MetaPage page={pageTitle} />
+      : <>
+        <Page key={pageTitle} title={pageTitle} currentTarget={hash.substring(1)} />
+        <Backlinks backlinks={backlinks} />
+      </>}
     <ReplicationStateIndicator state={peerState} onClick={() => {
       const newPeerString = prompt("Peers?", peers.join(','))
       if (newPeerString) {
@@ -699,7 +704,7 @@ function App() {
   </>;
 }
 
-function Switcher({dismiss}: {dismiss?: () => void}) {
+function Switcher({ dismiss }: { dismiss?: () => void }) {
   const [wiki] = useWiki()
   const [search, setSearch] = useState('')
   const matches = Object.keys(wiki.pages).filter(x => x.toLowerCase().includes(search.toLowerCase()))
