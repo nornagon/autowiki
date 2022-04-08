@@ -230,7 +230,7 @@ function BlockView({ block, changeBlock, textareaRef, editing, selected, onKeyDo
                 }
               })
             }
-            e.preventDefault()
+            (e as any).noSelect = true
             return
           }
         }}
